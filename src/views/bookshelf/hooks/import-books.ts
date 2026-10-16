@@ -1,6 +1,7 @@
 import { storeToRefs } from 'pinia';
 import { TxtParser, TxtParserType, Rule } from '../../../core/book/txt-parser';
 import { EpubParser } from '../../../core/book/epub-parser';
+import { ComicParser } from '../../../core/book/comic-parser';
 import { useTxtParseRuleStore } from '../../../store/txt-parse-rules';
 import { useBookshelfStore } from '../../../store/bookshelf';
 import { reactive, ref } from 'vue';
@@ -12,7 +13,7 @@ import CoverImage from '../../../assets/cover.jpg';
 import { newError } from '../../../core/utils';
 import { showOpenFileDialog } from '../../../core/utils/file';
 
-export type BookType = 'txt' | 'epub';
+export type BookType = 'txt' | 'epub' | 'comic';
 
 export type Book = {
   id: string
@@ -35,10 +36,13 @@ export type Book = {
 
 const TXT_EXTENSIONS = ['.txt', '.text'];
 const EPUB_EXTENSIONS = ['.epub'];
+/** 漫画压缩包格式，图片按文件名自然序作为页码 */
+const COMIC_EXTENSIONS = ['.cbz'];
 
 const isTxtFile = (name: string) => TXT_EXTENSIONS.some(ext => name.toLowerCase().endsWith(ext));
 const isEpubFile = (name: string) => EPUB_EXTENSIONS.some(ext => name.toLowerCase().endsWith(ext));
-const isBookFile = (name: string) => isTxtFile(name) || isEpubFile(name);
+const isComicFile = (name: string) => COMIC_EXTENSIONS.some(ext => name.toLowerCase().endsWith(ext));
+const isBookFile = (name: string) => isTxtFile(name) || isEpubFile(name) || isComicFile(name);
 
 export const useImportBooks = () => {
   const message = useMessage();
@@ -240,9 +244,34 @@ export const useImportBooks = () => {
     });
   }
 
+  const handlerComicBook = (name: string, path?: string, buffer?: Buffer) => {
+    return new Promise<Book>(async (reso, _) => {
+      try {
+        let parser;
+        if (path) {
+          parser = await ComicParser.loadFromFilePath(path);
+        } else if (buffer) {
+          parser = await ComicParser.loadFromBuffer(buffer, name);
+        } else {
+          throw newError('path and content is empty');
+        }
+        return reso(await buildBook(name, 'comic', parser));
+      } catch (e: any) {
+        GLOBAL_LOG.error('import book, file:', name, 'parse error', e);
+        return reso(rejectedBook(name, 'comic', e.message));
+      }
+    });
+  }
+
   /** 按扩展名分派到对应的解析器 */
   const handlerBook = (name: string, path?: string, buffer?: Buffer) => {
-    return isEpubFile(name) ? handlerEpubBook(name, path, buffer) : handlerTxtBook(name, path, buffer);
+    if (isEpubFile(name)) {
+      return handlerEpubBook(name, path, buffer);
+    }
+    if (isComicFile(name)) {
+      return handlerComicBook(name, path, buffer);
+    }
+    return handlerTxtBook(name, path, buffer);
   }
 
   const fileDragChange = async (files: File[]) => {
@@ -275,9 +304,10 @@ export const useImportBooks = () => {
       types: [{
         accept: {
           'text/plain': ['.txt', '.text'],
-          'application/epub+zip': ['.epub']
+          'application/epub+zip': ['.epub'],
+          'application/vnd.comicbook+zip': ['.cbz']
         },
-        description: '电子书籍'
+        description: '电子书籍与漫画'
       }],
       excludeAcceptAllOption: true
     }).then(async handles => {

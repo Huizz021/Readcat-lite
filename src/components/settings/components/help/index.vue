@@ -39,6 +39,10 @@ export default {
             </td>
           </tr>
           <tr>
+            <td>维护者</td>
+            <td>Huizzm</td>
+          </tr>
+          <tr>
             <td>原作者</td>
             <td>
               <ElLink href="https://github.com/read-cat/read-cat" target="_blank">Moomew</ElLink>

@@ -14,7 +14,7 @@ import {
   resolvePath,
   safeDecode,
   stripUrlSuffix
-} from './utils';
+} from '../utils';
 
 export type ManifestItem = {
   id: string

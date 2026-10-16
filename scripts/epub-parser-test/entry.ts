@@ -7,7 +7,7 @@
 
 import JSZip from 'jszip';
 import { EpubParser } from '../../src/core/book/epub-parser';
-import { bytesToBase64 } from '../../src/core/book/epub-parser/utils';
+import { bytesToBase64 } from '../../src/core/book/utils';
 
 const PNG_1X1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 

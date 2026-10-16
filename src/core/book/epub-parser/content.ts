@@ -10,7 +10,7 @@
  */
 
 import { escapeHTML } from '../../utils/html';
-import { findElement, findElements, normalizeSpace, parseDocument } from './utils';
+import { findElement, findElements, normalizeSpace, parseDocument } from '../utils';
 
 /** 解析时直接丢弃的元素 */
 const SKIP_TAGS = new Set([

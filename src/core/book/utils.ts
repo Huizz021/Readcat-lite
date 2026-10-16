@@ -1,8 +1,10 @@
 /**
- * EPUB 解析通用工具
+ * 本地书籍解析通用工具
  *
  * 说明：EPUB 内部大量使用 XML（OPF/NCX/XHTML），命名空间前缀（dc:、opf:、epub:）
  * 在不同书籍中写法并不统一，因此这里统一按 localName 匹配元素，忽略前缀差异。
+ *
+ * 这些工具由 EPUB / 漫画 等各类 BookParser 实现共用。
  */
 
 /** 解析 XML，遇到非良构文档时回退为 HTML 解析 */

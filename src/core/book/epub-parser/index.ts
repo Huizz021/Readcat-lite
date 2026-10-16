@@ -39,7 +39,7 @@ import {
   resolvePath,
   safeDecode,
   stripUrlSuffix
-} from './utils';
+} from '../utils';
 
 /** 单张图片转 data URL 的体积上限，超出则丢弃，避免数据库体积失控 */
 const MAX_IMAGE_SIZE = 4 * 1024 * 1024;
