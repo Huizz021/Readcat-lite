@@ -22,7 +22,9 @@ const config = {
   productName: 'ReadCat Lite',
   asar: true,
   asarUnpack: [
-    'node_modules'
+    'node_modules',
+    // pdf.js 的 worker 无法从 asar 内部启动，必须解包到磁盘
+    'dist/assets/pdf.worker-*.mjs'
   ],
   electronVersion,
   compression: 'maximum',

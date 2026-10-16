@@ -2,6 +2,8 @@ import { storeToRefs } from 'pinia';
 import { TxtParser, TxtParserType, Rule } from '../../../core/book/txt-parser';
 import { EpubParser } from '../../../core/book/epub-parser';
 import { ComicParser } from '../../../core/book/comic-parser';
+import { MobiParser } from '../../../core/book/mobi-parser';
+import { PdfParser } from '../../../core/book/pdf-parser';
 import { useTxtParseRuleStore } from '../../../store/txt-parse-rules';
 import { useBookshelfStore } from '../../../store/bookshelf';
 import { reactive, ref } from 'vue';
@@ -13,7 +15,7 @@ import CoverImage from '../../../assets/cover.jpg';
 import { newError } from '../../../core/utils';
 import { showOpenFileDialog } from '../../../core/utils/file';
 
-export type BookType = 'txt' | 'epub' | 'comic';
+export type BookType = 'txt' | 'epub' | 'comic' | 'mobi' | 'pdf';
 
 export type Book = {
   id: string
@@ -37,12 +39,17 @@ export type Book = {
 const TXT_EXTENSIONS = ['.txt', '.text'];
 const EPUB_EXTENSIONS = ['.epub'];
 /** 漫画压缩包格式，图片按文件名自然序作为页码 */
-const COMIC_EXTENSIONS = ['.cbz'];
+const COMIC_EXTENSIONS = ['.cbz', '.cbr'];
+/** Kindle 格式，azw3 即 KF8 */
+const MOBI_EXTENSIONS = ['.mobi', '.azw3'];
+const PDF_EXTENSIONS = ['.pdf'];
 
 const isTxtFile = (name: string) => TXT_EXTENSIONS.some(ext => name.toLowerCase().endsWith(ext));
 const isEpubFile = (name: string) => EPUB_EXTENSIONS.some(ext => name.toLowerCase().endsWith(ext));
 const isComicFile = (name: string) => COMIC_EXTENSIONS.some(ext => name.toLowerCase().endsWith(ext));
-const isBookFile = (name: string) => isTxtFile(name) || isEpubFile(name) || isComicFile(name);
+const isMobiFile = (name: string) => MOBI_EXTENSIONS.some(ext => name.toLowerCase().endsWith(ext));
+const isPdfFile = (name: string) => PDF_EXTENSIONS.some(ext => name.toLowerCase().endsWith(ext));
+const isBookFile = (name: string) => isTxtFile(name) || isEpubFile(name) || isComicFile(name) || isMobiFile(name) || isPdfFile(name);
 
 export const useImportBooks = () => {
   const message = useMessage();
@@ -263,6 +270,44 @@ export const useImportBooks = () => {
     });
   }
 
+  const handlerMobiBook = (name: string, path?: string, buffer?: Buffer) => {
+    return new Promise<Book>(async (reso, _) => {
+      try {
+        let parser;
+        if (path) {
+          parser = await MobiParser.loadFromFilePath(path);
+        } else if (buffer) {
+          parser = await MobiParser.loadFromBuffer(buffer, name);
+        } else {
+          throw newError('path and content is empty');
+        }
+        return reso(await buildBook(name, 'mobi', parser));
+      } catch (e: any) {
+        GLOBAL_LOG.error('import book, file:', name, 'parse error', e);
+        return reso(rejectedBook(name, 'mobi', e.message));
+      }
+    });
+  }
+
+  const handlerPdfBook = (name: string, path?: string, buffer?: Buffer) => {
+    return new Promise<Book>(async (reso, _) => {
+      try {
+        let parser;
+        if (path) {
+          parser = await PdfParser.loadFromFilePath(path);
+        } else if (buffer) {
+          parser = await PdfParser.loadFromBuffer(buffer, name);
+        } else {
+          throw newError('path and content is empty');
+        }
+        return reso(await buildBook(name, 'pdf', parser));
+      } catch (e: any) {
+        GLOBAL_LOG.error('import book, file:', name, 'parse error', e);
+        return reso(rejectedBook(name, 'pdf', e.message));
+      }
+    });
+  }
+
   /** 按扩展名分派到对应的解析器 */
   const handlerBook = (name: string, path?: string, buffer?: Buffer) => {
     if (isEpubFile(name)) {
@@ -270,6 +315,12 @@ export const useImportBooks = () => {
     }
     if (isComicFile(name)) {
       return handlerComicBook(name, path, buffer);
+    }
+    if (isMobiFile(name)) {
+      return handlerMobiBook(name, path, buffer);
+    }
+    if (isPdfFile(name)) {
+      return handlerPdfBook(name, path, buffer);
     }
     return handlerTxtBook(name, path, buffer);
   }
@@ -305,7 +356,10 @@ export const useImportBooks = () => {
         accept: {
           'text/plain': ['.txt', '.text'],
           'application/epub+zip': ['.epub'],
-          'application/vnd.comicbook+zip': ['.cbz']
+          'application/vnd.comicbook+zip': ['.cbz'],
+          'application/vnd.comicbook-rar': ['.cbr'],
+          'application/x-mobipocket-ebook': ['.mobi', '.azw3'],
+          'application/pdf': ['.pdf']
         },
         description: '电子书籍与漫画'
       }],
