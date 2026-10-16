@@ -81,6 +81,9 @@ const main = async () => {
   await sleep(1500);
 
   // ---- 2. 拖入 CBZ ----
+  // 页面失焦时 Input.dispatchDragEvent 会被忽略，必须先置顶
+  await client.send('Page.bringToFront').catch(() => { });
+  await sleep(400);
   const size = JSON.parse(await client.evaluate(`JSON.stringify({ w: window.innerWidth, h: window.innerHeight })`));
   const x = Math.floor(size.w / 2);
   const y = Math.floor(size.h / 2);
