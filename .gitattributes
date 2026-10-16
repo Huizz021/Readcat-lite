@@ -1,0 +1,13 @@
+# 统一以 LF 存储文本文件，避免 Windows / macOS / Linux 三平台 CI 因换行符产生差异
+* text=auto eol=lf
+
+# 二进制文件不要做换行符转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.woff2 binary
+*.epub binary
+*.7z binary

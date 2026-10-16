@@ -1,0 +1,5 @@
+# 验证脚本的运行产物，可用 build.mjs / gen-fixture.mjs 重新生成
+bundle.js
+fixture.js
+dump.html
+screenshot-*.png
