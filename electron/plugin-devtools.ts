@@ -5,7 +5,7 @@ import { PluginDevtoolsEventCode } from '../events/plugin-devtools';
 const isOverwriteTitleBar = process.platform === 'linux';
 export const createPluginDevtoolsWindow = (url: string, icon: string) => {
   let win: BrowserWindow | null = new BrowserWindow({
-    title: 'ReadCat Plugin Devtools',
+    title: 'ReadCat Lite Plugin Devtools',
     width: 1000,
     height: 700,
     minWidth: 1000,

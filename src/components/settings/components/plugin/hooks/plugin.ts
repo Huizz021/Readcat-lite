@@ -278,7 +278,7 @@ export const usePlugin = () => {
       multiple: true,
       excludeAcceptAllOption: true,
       types: [{
-        description: 'ReadCat插件',
+        description: 'ReadCat Lite插件',
         accept: {
           'text/javascript': ['.js'],
         }

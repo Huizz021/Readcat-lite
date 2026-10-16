@@ -61,7 +61,7 @@ export class AzureTTSEngine implements TextToSpeechEngine {
     }
 
     get commonHeaders(): Record<string, string> {
-        return { 'Ocp-Apim-Subscription-Key': this.subscriptionKey, 'User-Agent': 'ReadCat' }
+        return { 'Ocp-Apim-Subscription-Key': this.subscriptionKey, 'User-Agent': 'ReadCat Lite' }
     }
 
     get voiceListEndpoint(): string {

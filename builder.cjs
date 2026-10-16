@@ -18,8 +18,8 @@ if (isBuildWindows7) {
 * @see https://www.electron.build/configuration/configuration
 */
 const config = {
-  appId: 'io.github.read-cat',
-  productName: 'ReadCat',
+  appId: 'io.github.huizz021.readcat-lite',
+  productName: 'ReadCat Lite',
   asar: true,
   asarUnpack: [
     'node_modules'
@@ -40,7 +40,8 @@ const config = {
   ],
   win: {
     icon: 'public/icons/icon.ico',
-    artifactName: '${productName}-win32-${arch}' + `-${isBuildWindows7 ? 'windows7-' : ''}${version}.${commit.slice(0, 8)}` + '.${ext}',
+    // 产物文件名不带空格，避免下载链接需要转义
+    artifactName: 'ReadCat-Lite-win32-${arch}' + `-${isBuildWindows7 ? 'windows7-' : ''}${version}.${commit.slice(0, 8)}` + '.${ext}',
   },
   nsis: {
     installerIcon: 'public/icons/icon.ico',
@@ -52,12 +53,12 @@ const config = {
   },
   mac: {
     icon: 'public/icons/icon.icns',
-    artifactName: '${productName}-darwin-${arch}' + `-${version}.${commit.slice(0, 8)}` + '.${ext}',
+    artifactName: 'ReadCat-Lite-darwin-${arch}' + `-${version}.${commit.slice(0, 8)}` + '.${ext}',
     darkModeSupport: true
   },
   linux: {
     icon: 'public/icons',
-    artifactName: '${productName}-linux-${arch}' + `-${version}.${commit.slice(0, 8)}` + '.${ext}',
+    artifactName: 'ReadCat-Lite-linux-${arch}' + `-${version}.${commit.slice(0, 8)}` + '.${ext}',
   }
 }
 

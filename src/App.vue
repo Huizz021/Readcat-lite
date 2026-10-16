@@ -29,7 +29,7 @@ router.afterEach((to, _, fail) => {
   }
   win.currentPath = v;
   const title = document.head.querySelector('title');
-  title && (title.innerText = (to.meta.title ? `${to.meta.title} | ` : '') + 'ReadCat');
+  title && (title.innerText = (to.meta.title ? `${to.meta.title} | ` : '') + 'ReadCat Lite');
 });
 
 const { setScrollTop: _setScrollTop } = useScrollTopStore();
@@ -141,7 +141,7 @@ const isReadPageComputed = computed(() => {
       <div class="left-box">
         <div v-if="platform === 'darwin'" v-once class="window-controls-container app-no-darg"></div>
         <div v-show="!isReadPageComputed" id="logo">
-          <img class="app-drag" src="/icons/512x512.png" alt="ReadCat">
+          <img class="app-drag" src="/icons/512x512.png" alt="ReadCat Lite">
         </div>
         <GoBack id="goback" class="app-no-drag" :style="{
           marginLeft: isReadPageComputed ? '0' : '1rem'
@@ -180,7 +180,7 @@ const isReadPageComputed = computed(() => {
           <div class="info">
             <CloseButton @click="updateStore.closeUpdateWindow" />
             <img src="/public/icons/512x512.png" alt="logo">
-            <h3>ReadCat</h3>
+            <h3>ReadCat Lite</h3>
             <p class="version">{{ version?.newVersion }}</p>
           </div>
         </header>

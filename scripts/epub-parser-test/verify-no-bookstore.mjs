@@ -32,7 +32,7 @@ const main = async () => {
   await sleep(3000);
   const boot = JSON.parse(await client.evaluate(`JSON.stringify({ hash: location.hash, title: document.title })`));
   check('启动后默认进入书架（不再重定向到书城）', boot.hash === '#/bookshelf', JSON.stringify(boot));
-  check('窗口标题为「书架 | ReadCat」', boot.title === '书架 | ReadCat', JSON.stringify(boot));
+  check('窗口标题为「书架 | ReadCat Lite」', boot.title === '书架 | ReadCat Lite', JSON.stringify(boot));
 
   // ---- 2. 书城入口已消失 ----
   const header = JSON.parse(await client.evaluate(`JSON.stringify({

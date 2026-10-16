@@ -34,7 +34,7 @@ const isDebugMode = existsSync(debugModePath);
 
 function createWindow(width?: number, height?: number) {
   win = new BrowserWindow({
-    title: 'ReadCat',
+    title: 'ReadCat Lite',
     width: (width === void 0 || width < 950) ? 950 : width,
     height: (height === void 0 || height < 650) ? 650 : height,
     minWidth: 950,

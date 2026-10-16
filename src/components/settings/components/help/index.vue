@@ -21,7 +21,7 @@ export default {
   <div class="settings-help">
     <header>
       <img src="/icons/512x512.png" alt="logo">
-      <h3>ReadCat</h3>
+      <h3>ReadCat Lite</h3>
       <p class="desc">{{ description }}</p>
     </header>
     <main>
