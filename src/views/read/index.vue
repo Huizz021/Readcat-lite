@@ -23,7 +23,7 @@ import IconArrowLineDown from '../../assets/svg/icon-arrow-line-down.svg';
 import { useReadAloudStore } from '../../store/read-aloud';
 import { useScrollToggleChapter } from './hooks/scroll-toggle-chapter';
 import { useClipboard } from './hooks/clipboard';
-import { BookshelfStoreEntity } from '../../core/database/database';
+import { BookshelfStoreEntity, TextContentStoreEntity } from '../../core/database/database';
 
 const route = useRoute();
 
@@ -91,8 +91,9 @@ onRefresh(PagePath.READ, () => {
 
 /* ---------------- 双页对开 ---------------- */
 
-/** 两栏之间的间距（模拟书脊） */
-const SPREAD_GUTTER = 48;
+const SPREAD_GUTTER = 40;
+/** 翻页动画时长（毫秒），与 CSS 里的 transition 保持一致 */
+const FLIP_DURATION = 280;
 
 const spreadMode = computed(() => (
   options.enableTwoPageSpread
@@ -108,6 +109,12 @@ const pageIndex = ref(0);
 const totalPages = ref(1);
 const spreadTransform = ref('');
 
+/** 漫画的翻页轨道：slides[0] 当前对开，slides[1] 邻近对开 */
+const comicSlides = ref<string[]>(['', '']);
+const comicOffset = ref(0);
+const comicAnimated = ref(false);
+const comicBusy = ref(false);
+
 /** 读当前书籍信息，判断是漫画还是文本 */
 onMounted(async () => {
   try {
@@ -118,27 +125,142 @@ onMounted(async () => {
   }
 });
 
-/** 漫画双页：预取下一章的内容，与本页并排显示 */
-const nextContents = ref('');
-watch([spreadMode, currentChapter, bookType], async () => {
-  nextContents.value = '';
+const comicChapterTotal = computed(() => currentBook.value?.chapterList.length || 0);
+
+const toSlideHtml = (entity: TextContentStoreEntity) => {
+  return `<div class="spread-page">${entity.textContent.map((text, i) => `<div data-index="${i}">${text}</div>`).join('')}</div>`;
+};
+
+/**
+ * 取「以 start 开始的两页」拼成一个对开。
+ * 右页不存在（书末尾）时返回单页，由样式层居中处理。
+ */
+const buildSpread = async (start: number): Promise<string> => {
+  const all = (await GLOBAL_DB.store.textContentStore.getByPidAndDetailUrl(pid, detailUrl)) || [];
+  const left = all.find(c => c.chapter.index === start);
+  const right = all.find(c => c.chapter.index === start + 1);
+  return (left ? toSlideHtml(left) : '') + (right ? toSlideHtml(right) : '');
+};
+
+/** 用当前章节同步轨道：slides = [当前对开, 下一对开]，停在第一张 */
+const syncComicSlides = async () => {
   if (!spreadMode.value || bookType.value !== 'comic') {
+    comicSlides.value = ['', ''];
     return;
   }
-  const chapter = currentChapter.value;
-  if (isNull(chapter) || isUndefined(chapter.index)) {
+  const index = currentChapter.value?.index;
+  if (isUndefined(index)) {
     return;
   }
   try {
-    const all = await GLOBAL_DB.store.textContentStore.getByPidAndDetailUrl(pid, detailUrl);
-    const next = (all || []).find(c => c.chapter.index === chapter.index + 1);
-    nextContents.value = next
-      ? next.textContent.map((text, i) => `<div data-index="${i}">${text}</div>`).join('')
-      : '';
+    const current = await buildSpread(index);
+    const next = index + 2 < comicChapterTotal.value ? await buildSpread(index + 2) : '';
+    comicSlides.value = [current, next];
   } catch (e) {
-    GLOBAL_LOG.warn('read page, load next page failed', e);
+    GLOBAL_LOG.warn('read page, sync comic slides failed', e);
   }
+};
+
+watch([spreadMode, currentChapter, bookType], () => {
+  comicAnimated.value = false;
+  comicOffset.value = 0;
+  comicBusy.value = false;
+  syncComicSlides();
 }, { immediate: true });
+
+const comicTrack = ref<HTMLElement>();
+
+/**
+ * 翻页动画结束时提交章节切换。
+ * 不用 transitionend —— 它在部分环境下不触发，改用固定时长的定时器。
+ */
+const commitFlip = (goingNext: boolean, index: number) => {
+  window.setTimeout(async () => {
+    try {
+      if (goingNext) {
+        await nextChapter(true);
+        if (index + 2 < comicChapterTotal.value) {
+          await nextChapter(true);
+        }
+      } else {
+        await prevChapter(true);
+        await prevChapter(true);
+      }
+    } catch (e) {
+      GLOBAL_LOG.warn('read page, comic flip commit failed', e);
+    } finally {
+      comicAnimated.value = false;
+      comicOffset.value = 0;
+      comicBusy.value = false;
+    }
+  }, FLIP_DURATION + 30);
+};
+
+const onNextPage = () => {
+  if (!spreadMode.value) {
+    return;
+  }
+  if (bookType.value !== 'comic') {
+    gotoPage(pageIndex.value + 1);
+    return;
+  }
+  const index = currentChapter.value?.index;
+  if (isUndefined(index) || comicBusy.value || index + 1 >= comicChapterTotal.value) {
+    return;
+  }
+  comicBusy.value = true;
+  comicAnimated.value = true;
+  // translateX 的百分比相对轨道自身宽度（轨道是 200%），所以半屏是 -50%
+  comicOffset.value = -50;
+  commitFlip(true, index);
+};
+
+const onPrevPage = async () => {
+  if (!spreadMode.value) {
+    return;
+  }
+  if (bookType.value !== 'comic') {
+    gotoPage(pageIndex.value - 1);
+    return;
+  }
+  const index = currentChapter.value?.index;
+  if (isUndefined(index) || comicBusy.value || index - 1 < 0) {
+    return;
+  }
+  comicBusy.value = true;
+  try {
+    // 把「上一对开」放到第二张，先无动画跳过去，再滑回来
+    const prev = await buildSpread(index - 2);
+    comicAnimated.value = false;
+    comicSlides.value = [prev, comicSlides.value[0]];
+    comicOffset.value = -50;
+    await nextTick();
+    // 强制回流后再开启动画
+    void comicTrack.value?.offsetWidth;
+    comicAnimated.value = true;
+    comicOffset.value = 0;
+    commitFlip(false, index);
+  } catch (e) {
+    comicBusy.value = false;
+    GLOBAL_LOG.warn('read page, comic prev failed', e);
+  }
+};
+
+const canGoNext = computed(() => {
+  if (bookType.value === 'comic') {
+    const index = currentChapter.value?.index;
+    return !isUndefined(index) && index + 1 < comicChapterTotal.value;
+  }
+  return pageIndex.value < totalPages.value - 1;
+});
+
+const canGoPrev = computed(() => {
+  if (bookType.value === 'comic') {
+    const index = currentChapter.value?.index;
+    return !isUndefined(index) && index - 1 >= 0;
+  }
+  return pageIndex.value > 0;
+});
 
 /** 按视口宽度计算栏宽，保证恰好两栏填满一屏 */
 const applyColumnWidth = () => {
@@ -190,60 +312,7 @@ const gotoPage = (index: number) => {
   updateTransform();
 };
 
-const nextPage = () => gotoPage(pageIndex.value + 1);
-const prevPage = () => gotoPage(pageIndex.value - 1);
-
-const comicChapterTotal = computed(() => currentBook.value?.chapterList.length || 0);
-
-/**
- * 漫画的双页本来就是并排渲染的，不需要位移；
- * 「下一页」应当前进两个章节（一个对开）。
- */
-const onNextPage = async () => {
-  if (bookType.value !== 'comic') {
-    nextPage();
-    return;
-  }
-  const index = currentChapter.value?.index;
-  if (isUndefined(index) || index + 1 >= comicChapterTotal.value) {
-    return;
-  }
-  await nextChapter(true);
-  if (index + 2 < comicChapterTotal.value) {
-    await nextChapter(true);
-  }
-};
-
-const onPrevPage = async () => {
-  if (bookType.value !== 'comic') {
-    prevPage();
-    return;
-  }
-  const index = currentChapter.value?.index;
-  if (isUndefined(index) || index - 1 < 0) {
-    return;
-  }
-  await prevChapter(true);
-  await prevChapter(true);
-};
-
-const canGoNext = computed(() => {
-  if (bookType.value === 'comic') {
-    const index = currentChapter.value?.index;
-    return !isUndefined(index) && index + 1 < comicChapterTotal.value;
-  }
-  return pageIndex.value < totalPages.value - 1;
-});
-
-const canGoPrev = computed(() => {
-  if (bookType.value === 'comic') {
-    const index = currentChapter.value?.index;
-    return !isUndefined(index) && index - 1 >= 0;
-  }
-  return pageIndex.value > 0;
-});
-
-/** 换章时回到第一页 */
+/** 换章时回到第一屏 */
 watch(currentChapter, () => {
   pageIndex.value = 0;
   nextTick(recalcPages);
@@ -257,7 +326,7 @@ watch(contents, () => {
   nextTick(recalcPages);
 }, { immediate: true });
 
-watch([spreadMode, nextContents], () => {
+watch([spreadMode, bookType], () => {
   if (!spreadMode.value) {
     return;
   }
@@ -267,6 +336,19 @@ watch([spreadMode, nextContents], () => {
 const onResize = () => {
   if (spreadMode.value) {
     recalcPages();
+  }
+};
+
+const onKeydown = (e: KeyboardEvent) => {
+  if (!spreadMode.value) {
+    return;
+  }
+  if (e.key === 'ArrowLeft') {
+    onPrevPage();
+    e.preventDefault();
+  } else if (e.key === 'ArrowRight') {
+    onNextPage();
+    e.preventDefault();
   }
 };
 
@@ -287,27 +369,14 @@ onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown);
 });
 
-/** 左右方向键翻页 */
-const onKeydown = (e: KeyboardEvent) => {
-  if (!spreadMode.value) {
-    return;
-  }
-  if (e.key === 'ArrowLeft') {
-    onPrevPage();
-    e.preventDefault();
-  } else if (e.key === 'ArrowRight') {
-    onNextPage();
-    e.preventDefault();
-  }
-};
-
 const pageLabel = computed(() => {
   if (!spreadMode.value) {
     return '';
   }
   if (bookType.value === 'comic') {
-    const from = pageIndex.value * 2 + 1;
-    const to = Math.min(totalPages.value * 2, from + 1);
+    const index = currentChapter.value?.index ?? 0;
+    const from = index + 1;
+    const to = Math.min(comicChapterTotal.value, index + 2);
     return to > from ? `第 ${from}-${to} 页` : `第 ${from} 页`;
   }
   return `第 ${pageIndex.value + 1} 屏 / 共 ${totalPages.value} 屏`;
@@ -326,9 +395,13 @@ const pageLabel = computed(() => {
       </ElIcon>
     </div>
     <div class="reader-stage" :class="{ spread: spreadMode }">
-      <div v-if="spreadMode && bookType === 'comic'" id="text-content" class="spread-comic">
-        <div class="spread-page" v-html="contents"></div>
-        <div class="spread-page" v-html="nextContents"></div>
+      <div v-if="spreadMode && bookType === 'comic'" class="comic-viewport" :style="{ height: pageHeight }">
+        <div ref="comicTrack" class="comic-track" :class="{ animated: comicAnimated }" :style="{
+          transform: `translateX(${comicOffset}%)`,
+          transitionDuration: `${FLIP_DURATION}ms`
+        }">
+          <div v-for="(slide, i) in comicSlides" :key="i" class="spread-slide" v-html="slide"></div>
+        </div>
       </div>
       <div v-else id="text-content" v-show="!isRunningGetTextContent" v-html="contents" ref="spreadEl" :style="{
         width,
@@ -336,6 +409,7 @@ const pageLabel = computed(() => {
         fontSize,
         fontWeight,
         transform: spreadMode ? spreadTransform : '',
+        transition: spreadMode ? `transform ${FLIP_DURATION}ms ease` : '',
         '--rc-read-aloud-color': isDark ? '' : readAloudColor,
         '--rc-bookmark-odd-color': isDark ? '' : bookmarkColorOdd,
         '--rc-bookmark-even-color': isDark ? '' : bookmarkColorEven,
@@ -344,11 +418,11 @@ const pageLabel = computed(() => {
       }" :class="[spreadMode ? 'spread-text' : '', isSelectPlay && playerStatus === 'pause' ? 'play-start' : '']"></div>
     </div>
     <div v-if="spreadMode" class="spread-nav">
-      <button @click="onPrevPage" :disabled="!canGoPrev">
+      <button title="上一页" @click="onPrevPage" :disabled="!canGoPrev">
         <ElIcon size="18"><IconArrowLineUp /></ElIcon>
       </button>
       <span>{{ pageLabel }}</span>
-      <button @click="onNextPage" :disabled="!canGoNext">
+      <button title="下一页" @click="onNextPage" :disabled="!canGoNext">
         <ElIcon size="18"><IconArrowLineDown /></ElIcon>
       </button>
     </div>
@@ -402,8 +476,59 @@ const pageLabel = computed(() => {
 
     &.spread {
       overflow: hidden;
+      align-items: stretch;
+      /* 栏高与漫画轨道都依赖这个高度，塌陷会导致分栏失效 */
       height: v-bind(pageHeight);
-      align-items: flex-start;
+    }
+  }
+
+  /* 漫画翻页轨道 */
+  .comic-viewport {
+    width: 100%;
+    overflow: hidden;
+  }
+
+  .comic-track {
+    display: flex;
+    width: 200%;
+    height: 100%;
+
+    &.animated {
+      transition-property: transform;
+      transition-timing-function: ease;
+    }
+  }
+
+  .spread-slide {
+    width: 50%;
+    height: 100%;
+    display: flex;
+    gap: 8px;
+    padding: 0 8px;
+    box-sizing: border-box;
+    min-width: 0;
+  }
+
+  .spread-page {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+
+    :deep(img) {
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+    }
+
+    /* 只有单页时让它居中而不是靠左 */
+    &:only-child {
+      flex: 0 0 100%;
     }
   }
 
@@ -415,37 +540,9 @@ const pageLabel = computed(() => {
     &.spread-text {
       height: 100%;
       column-fill: auto;
-      break-inside: avoid;
 
       > :deep(div[data-index]) {
         break-inside: avoid;
-      }
-    }
-
-    &.spread-comic {
-      display: flex;
-      gap: 48px;
-      height: 100%;
-      width: 100%;
-      align-items: stretch;
-
-      .spread-page {
-        flex: 1;
-        min-width: 0;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        height: 100%;
-        overflow: hidden;
-      }
-
-      :deep(img) {
-        max-width: 100%;
-        max-height: 100%;
-        width: auto;
-        height: auto;
-        object-fit: contain;
-        align-self: center;
       }
     }
 
@@ -467,7 +564,7 @@ const pageLabel = computed(() => {
       transition: color 0.3s ease;
       overflow: hidden;
       contain: layout;
-      
+
       .bookmark {
         border-bottom: 1.5px solid var(--rc-bookmark-odd-color);
         color: var(--rc-bookmark-odd-font-color);
@@ -518,10 +615,6 @@ const pageLabel = computed(() => {
       border-radius: 8px;
       background: transparent;
       cursor: pointer;
-
-      .read-page-prev & {
-        transform: rotate(-90deg);
-      }
 
       &:disabled {
         opacity: 0.35;

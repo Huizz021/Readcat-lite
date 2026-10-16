@@ -26,6 +26,9 @@ const check = (name, ok, detail = '') => {
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 const dragIn = async (client, filePath) => {
+  // 页面失焦时 Input.dispatchDragEvent 会被忽略，必须先置顶
+  await client.send('Page.bringToFront').catch(() => { });
+  await sleep(400);
   const size = JSON.parse(await client.evaluate(`JSON.stringify({ w: window.innerWidth, h: window.innerHeight })`));
   const x = Math.floor(size.w / 2);
   const y = Math.floor(size.h / 2);
@@ -93,15 +96,18 @@ const openBookReader = async (client, bookname, chapterIndex = 1) => {
 const readSpreadState = async (client) => JSON.parse(await client.evaluate(`(() => {
   const stage = document.querySelector('.reader-stage');
   const el = document.getElementById('text-content');
+  const track = document.querySelector('.comic-track');
   const pages = [...document.querySelectorAll('.spread-page')];
+  const slides = [...document.querySelectorAll('.spread-slide')];
   return JSON.stringify({
     spread: stage ? stage.classList.contains('spread') : false,
-    isComic: el ? el.classList.contains('spread-comic') : false,
+    isComic: !!track,
+    comicSlides: slides.length,
     isText: el ? el.classList.contains('spread-text') : false,
     columnWidth: el ? (el.style.columnWidth || '') : '',
-    scrollWidth: el ? el.scrollWidth : 0,
+    scrollWidth: track ? track.scrollWidth : (el ? el.scrollWidth : 0),
     viewportWidth: el && el.parentElement ? el.parentElement.clientWidth : 0,
-    transform: el ? (el.style.transform || '') : '',
+    transform: track ? (track.style.transform || '') : (el ? (el.style.transform || '') : ''),
     pageCount: pages.length,
     pageImages: pages.map(p => p.querySelectorAll('img').length),
     hash: location.hash
@@ -167,24 +173,28 @@ const main = async () => {
 
   const cb = await readSpreadState(client);
   check('漫画进入双页对开模式', cb.spread && cb.isComic, JSON.stringify(cb));
-  check('左右各一页（两个 spread-page）', cb.pageCount === 2, JSON.stringify(cb));
-  check('两页都渲染出图片', cb.pageImages.length === 2 && cb.pageImages[0] >= 1 && cb.pageImages[1] >= 1, JSON.stringify(cb.pageImages));
+  check('轨道有两张对开滑块', cb.comicSlides === 2, JSON.stringify(cb));
+  check('两页并排（共 4 个 spread-page，含预取的下一对开）', cb.pageCount === 4, JSON.stringify(cb));
+  check('每一页都渲染出图片', cb.pageImages.length === 4 && cb.pageImages.every(n => n >= 1), JSON.stringify(cb.pageImages));
 
   const beforeChapter = await client.evaluate(`(() => {
     const el = document.querySelector('.chapter-list, [class*=chapter]');
     return document.querySelector('.rc-book-title, h4, .title') ? document.querySelector('.rc-book-title, h4, .title').innerText : '';
   })()`);
 
-  // 漫画的双页是并排渲染的，翻页应当前进 2 个章节（一个对开），不做位移
+  // 点击「下一页」，轨道应立即开始向左滑动
   await client.evaluate(`(() => {
     const nav = document.querySelector('.spread-nav');
     const btns = nav ? [...nav.querySelectorAll('button')] : [];
     if (btns.length > 1) btns[1].click();
     return !!nav;
   })()`);
+  await sleep(400);
+  const anim = await readSpreadState(client);
+  check('翻页动画向左滑动（translateX -50%，即半个轨道宽）', anim.transform.includes('-50'), `transform=${anim.transform}`);
   await sleep(5000);
   const cb2 = await readSpreadState(client);
-  check('漫画翻页后仍保持双页并排', cb2.spread && cb2.isComic && cb2.pageCount === 2, JSON.stringify(cb2));
+  check('翻页完成后回到双页并排', cb2.spread && cb2.isComic && cb2.comicSlides === 2, JSON.stringify(cb2));
 
   const chIdx = await client.evaluate(`(async () => {
     const all = (await GLOBAL_DB.store.bookshelfStore.getAll()) || [];
