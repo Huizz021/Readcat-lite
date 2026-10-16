@@ -3,3 +3,6 @@ bundle.js
 fixture.js
 dump.html
 screenshot-*.png
+
+# 性能测试用的大体积 CBZ，由 gen-cbz-large.mjs 生成
+large-comic-*.cbz
