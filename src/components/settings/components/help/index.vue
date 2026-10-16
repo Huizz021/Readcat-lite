@@ -40,7 +40,9 @@ export default {
           </tr>
           <tr>
             <td>维护者</td>
-            <td>Huizzm</td>
+            <td>
+              <ElLink href="https://github.com/Huizz021" target="_blank">Huizzm</ElLink>
+            </td>
           </tr>
           <tr>
             <td>原作者</td>

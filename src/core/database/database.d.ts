@@ -52,6 +52,8 @@ export type BookshelfStoreEntity = {
   readScrollTop: number,
   searchIndex: string,
   timestamp: number,
+  /**书籍类型，决定阅读页版式。缺省视为 text（兼容旧数据） */
+  type?: 'comic' | 'text',
 } & DetailEntity;
 export type TextContentStoreEntity = {
   id: string,

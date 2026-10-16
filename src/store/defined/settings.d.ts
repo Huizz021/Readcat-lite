@@ -35,6 +35,8 @@ export type SettingsOptions = {
   enableTransparentWindow: boolean
   /**显示章节切换按钮 */
   enableShowToggleChapterButton: boolean
+  /**双页对开排版，左右各一页，模拟实体书 */
+  enableTwoPageSpread: boolean
 }
 export type SettingsReadStyle = {
   /**阅读背景 */

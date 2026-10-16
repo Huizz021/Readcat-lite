@@ -157,6 +157,9 @@ export default {
       <SettingsCardItem v-memo="[options.enableScrollToggleChapter]" title="滚动切换章节" help="仅阅读界面生效">
         <ElSwitch :validate-event="false" v-model="options.enableScrollToggleChapter" />
       </SettingsCardItem>
+      <SettingsCardItem v-memo="[options.enableTwoPageSpread]" title="双页对开" help="仅阅读界面生效，左右各一页，可用左右方向键翻页">
+        <ElSwitch :validate-event="false" v-model="options.enableTwoPageSpread" />
+      </SettingsCardItem>
       <SettingsCardItem v-memo="[options.enableTransparentWindow]" title="透明窗口" :help="transparentWindowHelp">
         <ElSwitch :validate-event="false" :before-change="windowTransparentSwitchBeforeChange"
           :loading="windowTransparentSwitchIsLoading" @change="windowTransparentSwitchChange" v-model="options.enableTransparentWindow" />

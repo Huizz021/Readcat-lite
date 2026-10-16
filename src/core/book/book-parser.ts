@@ -27,6 +27,15 @@ export abstract class BookParser {
   public abstract getChapterTitleList(): Promise<string[]>;
   public abstract getChapterList(): Promise<Chapter[]>;
 
+  /**
+   * 书籍类型，决定阅读页版式
+   *
+   * 漫画走「两页并排」，文本走「两栏分页」。缺省按文本处理。
+   */
+  protected getBookType(): 'comic' | 'text' {
+    return 'text';
+  }
+
   public async toDatabaseEntity(options?: Options): Promise<{ bookshelf: BookshelfStoreEntity, textContents: TextContentStoreEntity[] }> {
     const bookname = isUndefined(options?.bookname) ? await this.getBookName() : options.bookname;
     const author = isUndefined(options?.author) ? await this.getAuthor() : options.author;
@@ -50,6 +59,7 @@ export abstract class BookParser {
       readIndex: -1,
       readScrollTop: 0,
       searchIndex: `${bookname} ${author}`,
+      type: this.getBookType(),
       bookname,
       author,
       coverImageUrl: coverImageUrl || CoverImage,

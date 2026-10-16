@@ -115,6 +115,11 @@ export class ComicParser extends BookParser {
     return new ComicParser(pages, info, sourceName);
   }
 
+  /** 漫画走双页并排排版 */
+  protected getBookType(): 'comic' | 'text' {
+    return 'comic';
+  }
+
   public getBookName() {
     return Promise.resolve(this.info.title || this.fallbackName());
   }
