@@ -96,7 +96,8 @@ platforms.forEach(a => {
     (archs.length <= 0) && (archs.push(Arch.x64, Arch.ia32));
     targets = Platform.WINDOWS.createTarget([
       'nsis',
-      'tar.gz'
+      // Windows 用户习惯双击解压，用 zip 而非 tar.gz
+      'zip'
     ], ...archs);
   } else if (platform === '--darwin') {
     (archs.length <= 0) && (archs.push(Arch.x64, Arch.arm64));
