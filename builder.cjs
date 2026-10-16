@@ -122,6 +122,7 @@ platforms.forEach(a => {
 const exts = [
   '.exe',
   '.tar.gz',
+  '.zip',
   '.dmg',
   '.appimage',
   '.deb',
