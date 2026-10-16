@@ -39,13 +39,15 @@ export default {
             </td>
           </tr>
           <tr>
-            <td>作者</td>
-            <td>Moomew</td>
+            <td>原作者</td>
+            <td>
+              <ElLink href="https://github.com/read-cat/read-cat" target="_blank">Moomew</ElLink>
+            </td>
           </tr>
           <tr>
-            <td>官网</td>
+            <td>项目地址</td>
             <td>
-              <ElLink href="https://read-cat.top" target="_blank">https://read-cat.top</ElLink>
+              <ElLink href="https://github.com/Huizz021/Readcat-lite" target="_blank">Huizz021/Readcat-lite（非官方分支）</ElLink>
             </td>
           </tr>
           <tr>

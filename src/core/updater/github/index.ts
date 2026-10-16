@@ -10,12 +10,20 @@ import { isUndefined } from '../../is';
 
 const lowElectronVersion = Number(process.versions.electron.split('.')[0]) <= 22;
 
+/**
+ * 更新源仓库
+ *
+ * 注意：必须是本分支自己的仓库。若指向上游 read-cat/read-cat，
+ * 检查更新会把用户引导去下载官方版本，安装后本分支的改动会被覆盖。
+ */
+const UPDATE_REPO = 'Huizz021/Readcat-lite';
+
 export class GithubUpdater implements Updater {
   async getUpdateLog(tag: string): Promise<Version | null> {
     const settings = useSettingsStore();
     const { options } = settings;
     const { proxy } = storeToRefs(settings);
-    const { body } = await get('https://api.github.com/repos/read-cat/read-cat/releases', {
+    const { body } = await get(`https://api.github.com/repos/${UPDATE_REPO}/releases`, {
       proxy: options.enableProxy ? proxy.value : void 0,
       responseType: 'json'
     }).catch(e => {
@@ -37,7 +45,7 @@ export class GithubUpdater implements Updater {
     const { options } = settings;
     const { proxy } = storeToRefs(settings);
     let release: Release | null;
-    const url = `https://api.github.com/repos/read-cat/read-cat/releases${branch === 'release' ? '/latest' : ''}`;
+    const url = `https://api.github.com/repos/${UPDATE_REPO}/releases${branch === 'release' ? '/latest' : ''}`;
     const { body } = await get(url, {
       proxy: options.enableProxy ? proxy.value : void 0,
       responseType: 'json'
