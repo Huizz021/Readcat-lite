@@ -498,8 +498,23 @@ const pageLabel = computed(() => {
     &.spread {
       overflow: hidden;
       align-items: stretch;
+      position: relative;
       /* 栏高与漫画轨道都依赖这个高度，塌陷会导致分栏失效 */
       height: v-bind(pageHeight);
+
+      /* 中缝：让「左右两页」的边界一眼可辨，模拟纸质书摊开时的书脊 */
+      &::after {
+        content: '';
+        position: absolute;
+        left: 50%;
+        top: 0;
+        bottom: 0;
+        width: 1px;
+        transform: translateX(-0.5px);
+        background: var(--rc-text-color, #1f1f1f);
+        opacity: 0.12;
+        pointer-events: none;
+      }
     }
   }
 
@@ -564,6 +579,29 @@ const pageLabel = computed(() => {
 
       > :deep(div[data-index]) {
         break-inside: avoid;
+      }
+
+      /* 插图不得超出一页：宽度受限于栏宽，高度受限于页高，等比缩放不裁切 */
+      :deep(div[data-index]) {
+        img {
+          max-width: 100%;
+          max-height: calc(v-bind(pageHeight) - 24px);
+          width: auto;
+          height: auto;
+          object-fit: contain;
+          display: block;
+          margin: 0 auto;
+        }
+      }
+
+      /* 纯插图段落撑满整页并垂直居中，像纸质书的整页插图，而不是挤在顶端 */
+      :deep(div[data-index]:has(> img:only-child)) {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        margin-bottom: 0;
+        text-indent: 0;
       }
     }
 
