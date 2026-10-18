@@ -262,6 +262,17 @@ const canGoPrev = computed(() => {
   return pageIndex.value > 0;
 });
 
+/** 退出对开时清掉栏样式，否则普通阅读会被强行分栏 */
+const clearColumnStyle = () => {
+  const el = spreadEl.value;
+  if (!el) {
+    return;
+  }
+  el.style.columnCount = '';
+  el.style.columnWidth = '';
+  el.style.columnGap = '';
+};
+
 /** 按视口宽度计算栏宽，保证恰好两栏填满一屏 */
 const applyColumnWidth = () => {
   const el = spreadEl.value;
@@ -273,11 +284,15 @@ const applyColumnWidth = () => {
   if (vw <= 0) {
     return;
   }
-  if (bookType.value === 'text') {
-    const col = Math.max(240, (vw - SPREAD_GUTTER) / 2);
-    el.style.columnWidth = `${col}px`;
-    el.style.columnGap = `${SPREAD_GUTTER}px`;
+  if (!spreadMode.value || bookType.value !== 'text') {
+    clearColumnStyle();
+    return;
   }
+  // 用 column-count 而不是 column-width：后者只是建议值，
+  // 元素宽度与视口不一致时会算出 1.x 栏，右边缘露出半截被裁的下一栏。
+  el.style.columnCount = '2';
+  el.style.columnWidth = '';
+  el.style.columnGap = `${SPREAD_GUTTER}px`;
 };
 
 /** 根据内容总宽度重算页数，并修正当前页码 */
@@ -292,6 +307,12 @@ const recalcPages = () => {
     return;
   }
   applyColumnWidth();
+  if (!spreadMode.value || bookType.value !== 'text') {
+    totalPages.value = 1;
+    pageIndex.value = 0;
+    spreadTransform.value = '';
+    return;
+  }
   totalPages.value = Math.max(1, Math.round(el.scrollWidth / vw));
   pageIndex.value = Math.min(Math.max(0, pageIndex.value), totalPages.value - 1);
   updateTransform();
@@ -404,7 +425,7 @@ const pageLabel = computed(() => {
         </div>
       </div>
       <div v-else id="text-content" v-show="!isRunningGetTextContent" v-html="contents" ref="spreadEl" :style="{
-        width,
+        width: spreadMode ? '100%' : width,
         minHeight: pageHeight,
         fontSize,
         fontWeight,
