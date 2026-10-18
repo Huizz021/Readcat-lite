@@ -24,6 +24,7 @@ import { useReadAloudStore } from '../../store/read-aloud';
 import { useScrollToggleChapter } from './hooks/scroll-toggle-chapter';
 import { useClipboard } from './hooks/clipboard';
 import { BookshelfStoreEntity, TextContentStoreEntity } from '../../core/database/database';
+import { useReadPageTurn } from '../../hooks/read-page-turn';
 
 const route = useRoute();
 
@@ -276,12 +277,10 @@ const clearColumnStyle = () => {
 /** 按视口宽度计算栏宽，保证恰好两栏填满一屏 */
 const applyColumnWidth = () => {
   const el = spreadEl.value;
-  const viewport = el?.parentElement;
-  if (!el || !viewport) {
+  if (!el) {
     return;
   }
-  const vw = viewport.clientWidth;
-  if (vw <= 0) {
+  if (el.clientWidth <= 0) {
     return;
   }
   if (!spreadMode.value || bookType.value !== 'text') {
@@ -298,11 +297,11 @@ const applyColumnWidth = () => {
 /** 根据内容总宽度重算页数，并修正当前页码 */
 const recalcPages = () => {
   const el = spreadEl.value;
-  const viewport = el?.parentElement;
-  if (!el || !viewport) {
+  if (!el) {
     return;
   }
-  const vw = viewport.clientWidth;
+  // 页宽取元素自身的宽度：舞台带左右页边距，clientWidth 会把 padding 算进去
+  const vw = el.clientWidth;
   if (vw <= 0) {
     return;
   }
@@ -320,11 +319,10 @@ const recalcPages = () => {
 
 const updateTransform = () => {
   const el = spreadEl.value;
-  const viewport = el?.parentElement;
-  if (!el || !viewport) {
+  if (!el || el.clientWidth <= 0) {
     return;
   }
-  spreadTransform.value = `translateX(${-pageIndex.value * viewport.clientWidth}px)`;
+  spreadTransform.value = `translateX(${-pageIndex.value * el.clientWidth}px)`;
 };
 
 const gotoPage = (index: number) => {
@@ -360,22 +358,46 @@ const onResize = () => {
   }
 };
 
-const onKeydown = (e: KeyboardEvent) => {
+/** 滚轮翻页（仅对开模式；滚动模式下滚轮仍是正常滚动） */
+let wheelLocked = false;
+const onWheel = (e: WheelEvent) => {
   if (!spreadMode.value) {
     return;
   }
-  if (e.key === 'ArrowLeft') {
-    onPrevPage();
-    e.preventDefault();
-  } else if (e.key === 'ArrowRight') {
+  e.preventDefault();
+  if (wheelLocked || Math.abs(e.deltaY) < 4) {
+    return;
+  }
+  wheelLocked = true;
+  window.setTimeout(() => { wheelLocked = false; }, FLIP_DURATION + 120);
+  if (e.deltaY > 0) {
     onNextPage();
-    e.preventDefault();
+  } else {
+    onPrevPage();
   }
 };
 
+/** 注册到全局快捷键：对开模式下接管翻页，未处理时由全局退回滚动 */
+const { register: registerPageTurn, unregister: unregisterPageTurn } = useReadPageTurn();
+const handleShortcutNext = () => {
+  if (!spreadMode.value) {
+    return false;
+  }
+  onNextPage();
+  return true;
+};
+const handleShortcutPrev = () => {
+  if (!spreadMode.value) {
+    return false;
+  }
+  onPrevPage();
+  return true;
+};
+
 onMounted(() => {
+  registerPageTurn({ next: handleShortcutNext, prev: handleShortcutPrev });
   window.addEventListener('resize', onResize);
-  window.addEventListener('keydown', onKeydown);
+  window.addEventListener('wheel', onWheel, { passive: false });
 
   // 点击章节会直接跳到阅读页，此时 currentChapter 与 contents 在挂载前就已就绪，
   // watch 不会触发，必须在挂载后主动算一次。延迟一次以避开布局未完成的时序。
@@ -386,8 +408,9 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  unregisterPageTurn();
   window.removeEventListener('resize', onResize);
-  window.removeEventListener('keydown', onKeydown);
+  window.removeEventListener('wheel', onWheel);
 });
 
 const pageLabel = computed(() => {
@@ -416,7 +439,7 @@ const pageLabel = computed(() => {
       </ElIcon>
     </div>
     <div class="reader-stage" :class="{ spread: spreadMode }">
-      <div v-if="spreadMode && bookType === 'comic'" class="comic-viewport" :style="{ height: pageHeight }">
+      <div v-if="spreadMode && bookType === 'comic'" class="comic-viewport" style="height: 100%">
         <div ref="comicTrack" class="comic-track" :class="{ animated: comicAnimated }" :style="{
           transform: `translateX(${comicOffset}%)`,
           transitionDuration: `${FLIP_DURATION}ms`
@@ -426,7 +449,7 @@ const pageLabel = computed(() => {
       </div>
       <div v-else id="text-content" v-show="!isRunningGetTextContent" v-html="contents" ref="spreadEl" :style="{
         width: spreadMode ? '100%' : width,
-        minHeight: pageHeight,
+        minHeight: spreadMode ? '' : pageHeight,
         fontSize,
         fontWeight,
         transform: spreadMode ? spreadTransform : '',
@@ -501,6 +524,9 @@ const pageLabel = computed(() => {
       position: relative;
       /* 栏高与漫画轨道都依赖这个高度，塌陷会导致分栏失效 */
       height: v-bind(pageHeight);
+      /* 页边距：实体书不会让文字贴到纸边，左右留白比上下略大 */
+      padding: 12px 5%;
+      box-sizing: border-box;
 
       /* 中缝：让「左右两页」的边界一眼可辨，模拟纸质书摊开时的书脊 */
       &::after {
@@ -585,7 +611,8 @@ const pageLabel = computed(() => {
       :deep(div[data-index]) {
         img {
           max-width: 100%;
-          max-height: calc(v-bind(pageHeight) - 24px);
+          /* 扣掉舞台的上下 padding，避免超出可视页高被裁 */
+          max-height: calc(v-bind(pageHeight) - 48px);
           width: auto;
           height: auto;
           object-fit: contain;

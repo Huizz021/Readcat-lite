@@ -58,12 +58,14 @@ export const useSettingsStore = defineStore('Settings', {
         port: 5543
       },
       shortcutKey: {
-        nextChapter: '→',
-        prevChapter: '←',
+        // 翻页是最常用的操作，放在最顺手的左右方向键上；
+        // 切换章节退到 Alt+方向键，避免对开模式下一次按键同时翻屏又跳章。
+        nextChapter: 'Alt+→',
+        prevChapter: 'Alt+←',
         scrollUp: '↑',
         scrollDown: '↓',
-        prevPage: 'PageUp',
-        nextPage: 'PageDown',
+        prevPage: '←',
+        nextPage: '→',
         openDevTools: 'Ctrl+Shift+I',
         zoomInWindow: 'Ctrl+=',
         zoomOutWindow: 'Ctrl+-',

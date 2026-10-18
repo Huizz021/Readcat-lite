@@ -10,6 +10,7 @@ import { useReadAloudStore } from '../store/read-aloud';
 import { useMessage } from './message';
 import { useTextContentStore } from '../store/text-content';
 import { isNull } from '../core/is';
+import { useReadPageTurn } from './read-page-turn';
 
 export const useShortcutKey = () => {
   const { nextChapter, prevChapter } = useTextContentStore();
@@ -20,6 +21,7 @@ export const useShortcutKey = () => {
   const { mainElement } = storeToRefs(useScrollTopStore());
   const readAloud = useReadAloudStore();
   const message = useMessage();
+  const { tryNext: tryNextPage, tryPrev: tryPrevPage } = useReadPageTurn();
 
   const handler = debounce((key: string) => {
     switch (key) {
@@ -55,10 +57,15 @@ export const useShortcutKey = () => {
         !win.transparentWindow && GLOBAL_IPC.send(EventCode.ASYNC_WINDOW_SET_FULLSCREEN, !win.isFullScreen);
         break;
       case shortcutKey.value.prevPage:
-        win.currentPath === PagePath.READ && (mainElement.value.scrollTop -= mainElement.value.clientHeight - readStyle.fontSize);
+        if (win.currentPath !== PagePath.READ) break;
+        // 对开模式下由阅读页整屏翻动；未处理时退回滚动一屏
+        if (tryPrevPage()) break;
+        mainElement.value.scrollTop -= mainElement.value.clientHeight - readStyle.fontSize;
         break;
       case shortcutKey.value.nextPage:
-        win.currentPath === PagePath.READ && (mainElement.value.scrollTop += mainElement.value.clientHeight - readStyle.fontSize);
+        if (win.currentPath !== PagePath.READ) break;
+        if (tryNextPage()) break;
+        mainElement.value.scrollTop += mainElement.value.clientHeight - readStyle.fontSize;
         break;
       default:
         break;
