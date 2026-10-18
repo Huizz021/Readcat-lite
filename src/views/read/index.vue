@@ -202,6 +202,11 @@ const onNextPage = () => {
     return;
   }
   if (bookType.value !== 'comic') {
+    // 已经是本章最后一屏 → 自动进入下一章第一屏
+    if (pageIndex.value >= totalPages.value - 1) {
+      nextChapter(true).catch(e => GLOBAL_LOG.warn('read page, next chapter failed', e));
+      return;
+    }
     gotoPage(pageIndex.value + 1);
     return;
   }
@@ -221,6 +226,23 @@ const onPrevPage = async () => {
     return;
   }
   if (bookType.value !== 'comic') {
+    // 已经是本章第一屏 → 回到上一章，并定位到它的最后一屏
+    if (pageIndex.value <= 0) {
+      try {
+        await prevChapter(true);
+        await nextTick();
+        recalcPages();
+        // 排版（尤其图片）可能还没稳定，稍等再定位，避免被 clamp 回第 0 屏
+        window.setTimeout(() => {
+          recalcPages();
+          pageIndex.value = Math.max(0, totalPages.value - 1);
+          updateTransform();
+        }, 180);
+      } catch (e) {
+        GLOBAL_LOG.warn('read page, prev chapter failed', e);
+      }
+      return;
+    }
     gotoPage(pageIndex.value - 1);
     return;
   }
@@ -252,7 +274,12 @@ const canGoNext = computed(() => {
     const index = currentChapter.value?.index;
     return !isUndefined(index) && index + 1 < comicChapterTotal.value;
   }
-  return pageIndex.value < totalPages.value - 1;
+  if (pageIndex.value < totalPages.value - 1) {
+    return true;
+  }
+  // 本章最后一屏：还有下一章就允许翻（会自动跨章）
+  const index = currentChapter.value?.index;
+  return !isUndefined(index) && index + 1 < comicChapterTotal.value;
 });
 
 const canGoPrev = computed(() => {
@@ -260,7 +287,11 @@ const canGoPrev = computed(() => {
     const index = currentChapter.value?.index;
     return !isUndefined(index) && index - 1 >= 0;
   }
-  return pageIndex.value > 0;
+  if (pageIndex.value > 0) {
+    return true;
+  }
+  const index = currentChapter.value?.index;
+  return !isUndefined(index) && index - 1 >= 0;
 });
 
 /** 退出对开时清掉栏样式，否则普通阅读会被强行分栏 */
@@ -294,15 +325,29 @@ const applyColumnWidth = () => {
   el.style.columnGap = `${SPREAD_GUTTER}px`;
 };
 
+/**
+ * 一页的步长。
+ *
+ * column-count: 2 时，两栏 + 一个栏间距正好填满元素宽度；
+ * 但页与页之间还有第二个栏间距，所以步长是「元素宽 + 栏间距」。
+ * 直接用元素宽会让每页少移一个间距，下一页的内容从右边漏进来。
+ */
+const pageStep = () => {
+  const el = spreadEl.value;
+  if (!el || el.clientWidth <= 0) {
+    return 0;
+  }
+  const gap = parseFloat(getComputedStyle(el).columnGap) || 0;
+  return el.clientWidth + gap;
+};
+
 /** 根据内容总宽度重算页数，并修正当前页码 */
 const recalcPages = () => {
   const el = spreadEl.value;
   if (!el) {
     return;
   }
-  // 页宽取元素自身的宽度：舞台带左右页边距，clientWidth 会把 padding 算进去
-  const vw = el.clientWidth;
-  if (vw <= 0) {
+  if (el.clientWidth <= 0) {
     return;
   }
   applyColumnWidth();
@@ -312,18 +357,25 @@ const recalcPages = () => {
     spreadTransform.value = '';
     return;
   }
-  totalPages.value = Math.max(1, Math.round(el.scrollWidth / vw));
+  const step = pageStep();
+  if (step <= 0) {
+    return;
+  }
+  totalPages.value = Math.max(1, Math.ceil(el.scrollWidth / step));
   pageIndex.value = Math.min(Math.max(0, pageIndex.value), totalPages.value - 1);
   updateTransform();
 };
 
 const updateTransform = () => {
-  const el = spreadEl.value;
-  if (!el || el.clientWidth <= 0) {
+  const step = pageStep();
+  if (step <= 0) {
     return;
   }
-  spreadTransform.value = `translateX(${-pageIndex.value * el.clientWidth}px)`;
+  spreadTransform.value = `translateX(${-pageIndex.value * step}px)`;
 };
+
+/** 跨章翻页时，等新章节排版完成后再落到指定的页 */
+
 
 const gotoPage = (index: number) => {
   const max = totalPages.value - 1;
