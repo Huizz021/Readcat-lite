@@ -109,6 +109,8 @@ const spreadEl = ref<HTMLElement>();
 const pageIndex = ref(0);
 const totalPages = ref(1);
 const spreadTransform = ref('');
+/** 是否启用位移过渡：跨章定位时需要先瞬时归位再滑入，否则会整屏倒滑 */
+const spreadAnimating = ref(true);
 
 /** 漫画的翻页轨道：slides[0] 当前对开，slides[1] 邻近对开 */
 const comicSlides = ref<string[]>(['', '']);
@@ -197,14 +199,23 @@ const commitFlip = (goingNext: boolean, index: number) => {
   }, FLIP_DURATION + 30);
 };
 
-const onNextPage = () => {
+const onNextPage = async () => {
   if (!spreadMode.value) {
     return;
   }
   if (bookType.value !== 'comic') {
-    // 已经是本章最后一屏 → 自动进入下一章第一屏
+    // 已经是本章最后一屏 → 进入下一章，并让新内容从右侧翻进来
     if (pageIndex.value >= totalPages.value - 1) {
-      nextChapter(true).catch(e => GLOBAL_LOG.warn('read page, next chapter failed', e));
+      try {
+        await nextChapter(true);
+        await nextTick();
+        recalcPages();
+        pageIndex.value = 0;
+        const step = pageStep();
+        await slideTo(step, 0);
+      } catch (e) {
+        GLOBAL_LOG.warn('read page, next chapter failed', e);
+      }
       return;
     }
     gotoPage(pageIndex.value + 1);
@@ -226,18 +237,19 @@ const onPrevPage = async () => {
     return;
   }
   if (bookType.value !== 'comic') {
-    // 已经是本章第一屏 → 回到上一章，并定位到它的最后一屏
+    // 已经是本章第一屏 → 回到上一章，并让它的最后一屏从左侧翻进来
     if (pageIndex.value <= 0) {
       try {
         await prevChapter(true);
         await nextTick();
         recalcPages();
-        // 排版（尤其图片）可能还没稳定，稍等再定位，避免被 clamp 回第 0 屏
-        window.setTimeout(() => {
-          recalcPages();
-          pageIndex.value = Math.max(0, totalPages.value - 1);
-          updateTransform();
-        }, 180);
+        // 排版（尤其图片）可能还没稳定，稍等再定位
+        await new Promise(r => setTimeout(r, 180));
+        recalcPages();
+        const step = pageStep();
+        const last = Math.max(0, totalPages.value - 1);
+        pageIndex.value = last;
+        await slideTo(-(last + 1) * step, -last * step);
       } catch (e) {
         GLOBAL_LOG.warn('read page, prev chapter failed', e);
       }
@@ -374,6 +386,29 @@ const updateTransform = () => {
   spreadTransform.value = `translateX(${-pageIndex.value * step}px)`;
 };
 
+/**
+ * 从指定位置滑到目标位置。
+ *
+ * 跨章时如果直接改 pageIndex，会从「本章第 N 屏」整屏倒滑回第 1 屏，
+ * 观感非常割裂。这里先把内容瞬时放到目标页的相邻位置（无过渡），
+ * 再开启过渡滑到目标页——视觉上就是「新的一页从右边/左边翻进来」。
+ */
+const slideTo = async (fromPx: number, toPx: number) => {
+  const el = spreadEl.value;
+  if (!el) {
+    spreadTransform.value = `translateX(${toPx}px)`;
+    return;
+  }
+  spreadAnimating.value = false;
+  spreadTransform.value = `translateX(${fromPx}px)`;
+  await nextTick();
+  void el.offsetWidth;
+  spreadAnimating.value = true;
+  await nextTick();
+  void el.offsetWidth;
+  spreadTransform.value = `translateX(${toPx}px)`;
+};
+
 /** 跨章翻页时，等新章节排版完成后再落到指定的页 */
 
 
@@ -506,7 +541,7 @@ const pageLabel = computed(() => {
           fontSize,
           fontWeight,
           transform: spreadMode ? spreadTransform : '',
-          transition: spreadMode ? `transform ${FLIP_DURATION}ms ease` : '',
+          transition: spreadMode && spreadAnimating ? `transform ${FLIP_DURATION}ms ease` : '',
           '--rc-read-aloud-color': isDark ? '' : readAloudColor,
           '--rc-bookmark-odd-color': isDark ? '' : bookmarkColorOdd,
           '--rc-bookmark-even-color': isDark ? '' : bookmarkColorEven,
