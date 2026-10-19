@@ -92,7 +92,22 @@ onRefresh(PagePath.READ, () => {
 
 /* ---------------- 双页对开 ---------------- */
 
+/** 栏间距基准（会按页宽再调整） */
 const SPREAD_GUTTER = 40;
+
+/**
+ * 中缝留白。
+ *
+ * 实体书的「内白边」（两页相对的一侧）通常是最宽的一条，
+ * 比外白边还要宽一些。这里按页宽的 12% 计算，并限定在 64~140px，
+ * 保证窄窗口下不会把正文挤成细条。
+ */
+const gutterFor = (pageWidth: number) => {
+  if (pageWidth <= 0) {
+    return SPREAD_GUTTER;
+  }
+  return Math.round(Math.min(140, Math.max(64, pageWidth * 0.12)));
+};
 /** 翻页动画时长（毫秒），与 CSS 里的 transition 保持一致 */
 const FLIP_DURATION = 280;
 
@@ -334,7 +349,7 @@ const applyColumnWidth = () => {
   // 元素宽度与视口不一致时会算出 1.x 栏，右边缘露出半截被裁的下一栏。
   el.style.columnCount = '2';
   el.style.columnWidth = '';
-  el.style.columnGap = `${SPREAD_GUTTER}px`;
+  el.style.columnGap = `${gutterFor(el.clientWidth)}px`;
 };
 
 /**
