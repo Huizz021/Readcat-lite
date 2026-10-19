@@ -38,14 +38,6 @@ const routes: Array<RouteRecordRaw> = [
     component: () => import('../views/history/index.vue')
   },
   {
-    name: 'search',
-    path: '/search',
-    meta: {
-      title: '搜索'
-    },
-    component: () => import('../views/search/index.vue')
-  },
-  {
     // 兜底：已移除的 /bookstore 等历史路径与未知路径统一回到书架，避免白屏
     path: '/:pathMatch(.*)*',
     redirect: '/bookshelf'

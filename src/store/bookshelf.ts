@@ -1,10 +1,8 @@
 import { defineStore } from 'pinia';
 import { BookshelfStoreEntity } from '../core/database/database';
 import { useMessage } from '../hooks/message';
-import { chunkArray, errorHandler, newError, replaceInvisibleStr } from '../core/utils';
-import { isNull, isUndefined } from '../core/is';
-import { useSettingsStore } from './settings';
-import { BookSource } from '../core/plugins/defined/booksource';
+import { errorHandler, newError, replaceInvisibleStr } from '../core/utils';
+import { isUndefined } from '../core/is';
 import { BookParser } from '../core/book/book-parser';
 
 export type Book = {
@@ -25,7 +23,6 @@ export type Book = {
   pluginName: string
 }
 export type BookRefresh = {
-  isRunningRefresh: boolean,
   error?: string,
 } & Book;
 
@@ -34,7 +31,6 @@ export const useBookshelfStore = defineStore('Bookshelf', {
     return {
       _books: new Map<string, BookRefresh>(),
       currentPage: 1,
-      refreshed: false
     }
   },
   getters: {
@@ -110,7 +106,6 @@ export const useBookshelfStore = defineStore('Bookshelf', {
         };
         await GLOBAL_DB.store.bookshelfStore.put(_entity);
         this._books.set(id, {
-          isRunningRefresh: false,
           error: void 0,
           ...obj
         });
@@ -140,80 +135,6 @@ export const useBookshelfStore = defineStore('Bookshelf', {
       } catch (e: any) {
         useMessage().error(e.message);
         return errorHandler(e);
-      }
-    },
-    async refresh(id: string): Promise<void> {
-      const entity = this._books.get(id);
-      if (!entity || entity.isRunningRefresh) {
-        return;
-      }
-      const db = await GLOBAL_DB.store.bookshelfStore.getById(id);
-      if (isNull(db)) {
-        return;
-      }
-      try {
-        const { pid, detailPageUrl, baseUrl } = entity;
-        if (pid === BookParser.PID) {
-          return;
-        }
-        const plugin = GLOBAL_PLUGINS.getPluginById<BookSource>(pid);
-        if (isUndefined(plugin)) {
-          throw newError(`无法获取插件, 插件ID:${pid}`);
-        }
-        const { props, instance } = plugin;
-        if (isNull(instance)) {
-          throw newError(`插件未启用, 插件ID:${pid}`);
-        }
-        if (isUndefined(props.BASE_URL) || props.BASE_URL.trim() !== baseUrl.trim()) {
-          throw newError('插件请求目标链接[BASE_URL]不匹配');
-        }
-        entity.isRunningRefresh = true;
-        const {
-          bookname,
-          author,
-          intro,
-          coverImageUrl,
-          chapterList,
-          latestChapterTitle
-        } = await instance.getDetail(detailPageUrl);
-        await this.put({
-          id: db.id,
-          pid: db.pid,
-          detailPageUrl: db.detailPageUrl,
-          pluginVersionCode: db.pluginVersionCode,
-          readIndex: db.readIndex,
-          readScrollTop: db.readScrollTop,
-          searchIndex: db.searchIndex,
-          timestamp: db.timestamp,
-          baseUrl: db.baseUrl,
-          bookname: bookname.trim() || db.bookname,
-          author: author.trim() || db.author,
-          intro: intro?.trim() || db.intro,
-          coverImageUrl: coverImageUrl.trim() || db.coverImageUrl,
-          chapterList: chapterList || db.chapterList,
-          latestChapterTitle: latestChapterTitle?.trim() || db.latestChapterTitle
-        });
-      } catch (e: any) {
-        entity.error = errorHandler(e, true);
-        GLOBAL_LOG.error(`Bookshelf refresh bookId:${id}`, e);
-        return errorHandler(e);
-      } finally {
-        entity.isRunningRefresh = false;
-      }
-
-    },
-    async refreshAll() {
-      const { threadsNumber } = useSettingsStore();
-      const threads = chunkArray(Array.from(this._books.values()), threadsNumber);
-      for (const thread of threads) {
-        const ps: Promise<void>[] = [];
-        for (const book of thread) {
-          if (book.isRunningRefresh) {
-            continue;
-          }
-          ps.push(this.refresh(book.id));
-        }
-        await Promise.allSettled(ps);
       }
     },
   }

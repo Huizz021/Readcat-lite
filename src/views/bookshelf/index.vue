@@ -15,12 +15,11 @@ import {
 import { onMounted } from 'vue';
 import { useScrollTopStore } from '../../store/scrolltop';
 import { PagePath } from '../../core/window';
+import { useBookshelfStore } from '../../store/bookshelf';
 import { usePagination } from './hooks/pagination';
-import { useRefresh } from './hooks/refresh';
 import IconSearch from '../../assets/svg/icon-search.svg';
 import IconUser from '../../assets/svg/icon-user.svg';
 import IconDot from '../../assets/svg/icon-dot.svg';
-import IconLoading from '../../assets/svg/icon-loading.svg';
 import IconBack from '../../assets/svg/icon-goback-back.svg';
 import IconPlugin from '../../assets/svg/icon-settings-plugins.svg';
 import IconImport from '../../assets/svg/icon-import.svg';
@@ -29,7 +28,6 @@ import { useSettingsStore } from '../../store/settings';
 import CoverImage from '../../assets/cover.jpg';
 import { Book } from '../../store/bookshelf';
 import { useRouter } from 'vue-router';
-import { useWindowStore } from '../../store/window';
 import { useBookshelfCheckbox } from './hooks/bookshelf-checkbox';
 import { useImportBooks } from './hooks/import-books';
 import { Window, FileDrag, CloseButton, Text } from '../../components';
@@ -47,12 +45,10 @@ onMounted(() => {
   pageScrollTop(PagePath.BOOKSHELF);
 });
 
-const { refresh, refreshValues } = useRefresh();
+const refreshValues = storeToRefs(useBookshelfStore()).books;
 const { searchKey, searchResult } = useDefaultSearch(refreshValues);
 const { totalPage, currentPage, currentPageChange, showValue } = usePagination(searchResult);
 
-const { onRefresh } = useWindowStore();
-onRefresh(PagePath.BOOKSHELF, refresh);
 
 router.afterEach((to, from, fail) => {
   if (fail) return;
@@ -160,10 +156,7 @@ const goReadPage = (e: MouseEvent, to: 'already' | 'latest', book: Book) => {
               <div>
                 <p class="bookname" v-if="item.bookname">
                   <Text v-memo="[item.bookname]" :title="item.bookname" ellipsis max-width="160">{{ item.bookname }}</Text>
-                  <ElIcon class="is-loading"  v-if="item.isRunningRefresh">
-                    <IconLoading style="width: 12px;height: 12px;" />
-                  </ElIcon>
-                  <ElIcon v-else-if="item.error" :title="`错误 ${item.error}`">
+                  <ElIcon v-if="item.error" :title="`错误 ${item.error}`">
                     <IconDot class="rc-error-color" style="width: 14px;height: 14px;" />
                   </ElIcon>
                 </p>

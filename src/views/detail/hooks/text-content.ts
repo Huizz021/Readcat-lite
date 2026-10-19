@@ -9,7 +9,7 @@ import { storeToRefs } from 'pinia';
 import { isUndefined } from '../../../core/is';
 
 export const useTextContent = (detailResult: Ref<DetailPageResult | null>, detailUrl: string, existBookshelf: Ref<boolean>) => {
-  const { cache, getTextContent } = useTextContentStore();
+  const { getTextContent } = useTextContentStore();
   const { currentChapter } = storeToRefs(useTextContentStore());
   const router = useRouter();
   const message = useMessage();
@@ -18,7 +18,7 @@ export const useTextContent = (detailResult: Ref<DetailPageResult | null>, detai
     if (!detailResult.value) {
       return;
     }
-    const { pid, chapterList } = detailResult.value;
+    const { pid } = detailResult.value;
     getTextContent(pid, chapter).then(() => {
       if (isUndefined(chapter.index)) {
         setCurrentReadIndex(-1);
@@ -36,7 +36,6 @@ export const useTextContent = (detailResult: Ref<DetailPageResult | null>, detai
         }
       });
       if (existBookshelf.value) {
-        cache(pid, detailUrl, chapterList, chapter.index);
       }
     }).catch(e => {
       message.error(e.message);

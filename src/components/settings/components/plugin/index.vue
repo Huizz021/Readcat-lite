@@ -120,8 +120,7 @@ export default {
           </ElTableColumn>
           <ElTableColumn label="类型" width="65">
             <template #default="{ row }">
-              <ElTag v-if="row.type === PluginType.BOOK_SOURCE">书源</ElTag>
-              <ElTag v-else-if="row.type === PluginType.TTS_ENGINE">TTS</ElTag>
+              <ElTag v-if="row.type === PluginType.TTS_ENGINE">TTS</ElTag>
             </template>
           </ElTableColumn>
           <ElTableColumn label="分组" width="70">

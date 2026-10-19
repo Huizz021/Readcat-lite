@@ -10,10 +10,7 @@ import { PluginDevtoolsEventCode } from '../../../events/plugin-devtools';
 import { EventCode } from '../../../events';
 import {
   runCompile,
-  runGetDetail,
-  runGetTextContent,
   runGetVoiceList,
-  runSearch,
   runTransform,
   sendLog
 } from './event/handler';
@@ -178,15 +175,6 @@ export class PluginDevtools {
     switch (code) {
       case PluginDevtoolsEventCode.CLOSE_WINDOW:
         this.close();
-        break;
-      case PluginDevtoolsEventCode.PLUGIN_BOOKSOURCE_RUN_SEARCH:
-        runSearch(this, code, args[0], args[1]);
-        break;
-      case PluginDevtoolsEventCode.PLUGIN_BOOKSOURCE_RUN_GET_DETAIL:
-        runGetDetail(this, code, args[0], args[1]);
-        break;
-      case PluginDevtoolsEventCode.PLUGIN_BOOKSOURCE_RUN_GET_TEXT_CONTENT:
-        runGetTextContent(this, code, args[0], args[1]);
         break;
       case PluginDevtoolsEventCode.PLUGIN_COMPILE:
         runCompile(this, code, args[0], args[1]);

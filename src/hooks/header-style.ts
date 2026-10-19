@@ -1,10 +1,9 @@
-import { Ref, computed, reactive, watch, watchEffect } from 'vue';
+import { reactive, watch, watchEffect } from 'vue';
 import { useWindowStore } from '../store/window';
 import { storeToRefs } from 'pinia';
 import { useSettingsStore } from '../store/settings';
 import { colorIsLight, getColorRGB } from '../core/utils';
 import { PagePath } from '../core/window';
-import { useSearchStore } from '../store/search';
 import { EventCode } from '../../events';
 import { useTextContentStore } from '../store/text-content';
 
@@ -15,11 +14,10 @@ export type SearchHeaderStyle = {
   boxBackgroundColor: string,
 }
 
-export const useHeaderStyle = (searchkey: Ref<string>, progress: Ref<number>) => {
+export const useHeaderStyle = () => {
   const win = useWindowStore();
   const { options } = useSettingsStore();
   const { backgroundColor, textColor } = storeToRefs(useSettingsStore());
-  const { isRunningSearch } = storeToRefs(useSearchStore());
   const { searchBoxHeaderText } = storeToRefs(useWindowStore());
   const { currentChapter } = storeToRefs(useTextContentStore());
   const searchStyle = reactive<SearchHeaderStyle>({
@@ -27,9 +25,6 @@ export const useHeaderStyle = (searchkey: Ref<string>, progress: Ref<number>) =>
     backgroundColor: '',
     color: '',
     boxBackgroundColor: '',
-  });
-  const key = computed(() => {
-    return searchkey.value.split('&')[0].trim();
   });
   const setSearchBoxBackgroundColor = (isDark: boolean) => {
     const root = document.querySelector<HTMLElement>(':root');
@@ -103,18 +98,6 @@ export const useHeaderStyle = (searchkey: Ref<string>, progress: Ref<number>) =>
     }
   }, {
     immediate: true
-  });
-  watchEffect(() => {
-    if (win.currentPath !== PagePath.SEARCH) {
-      win.searchBoxHeaderText = '搜索';
-      return;
-    }
-    if (isRunningSearch.value) {
-      progress.value = progress.value >= 1 ? 0 : progress.value;
-      win.searchBoxHeaderText = `正在搜索(${Math.ceil(progress.value * 100)}%) ${key.value}`;
-      return;
-    }
-    win.searchBoxHeaderText = key.value;
   });
   watchEffect(() => {
     if (win.currentPath !== PagePath.READ) {

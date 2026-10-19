@@ -399,10 +399,8 @@ export const useImportBooks = () => {
         message.warning('请输入书名');
         return;
       }
-      if (!author) {
-        message.warning('请输入作者');
-        return;
-      }
+      // 本地文件（PDF/EPUB/TXT/漫画）经常没有作者元数据，不强制要求；
+      // 表单里仍然可以手动填写。
       const { bookshelf, textContents } = await book.parser.toDatabaseEntity({
         bookname,
         author,

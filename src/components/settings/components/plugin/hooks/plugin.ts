@@ -35,9 +35,6 @@ export const usePlugin = () => {
     return GLOBAL_PLUGINS.getAllPlugins().map<Plugin>(({ enable, pluginClass, builtIn }) => {
       let typeLabel: string;
       switch (pluginClass.TYPE) {
-        case PluginType.BOOK_SOURCE:
-          typeLabel = '书源';
-          break;
         case PluginType.TTS_ENGINE:
           typeLabel = 'TTS';
           break;

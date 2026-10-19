@@ -6,7 +6,6 @@ import {
   ElRadioGroup,
   ElRadioButton,
   ElMain,
-  ElIcon,
   ElPagination
 } from 'element-plus';
 import { ref } from 'vue';
@@ -19,8 +18,6 @@ import { useDetailStore } from '../../../../store/detail';
 import { storeToRefs } from 'pinia';
 import { WindowEvent } from '../../../window/index.vue';
 import { useBookshelfStore } from '../../../../store/bookshelf';
-import { useCacheChapter } from './hooks/cache-chapter';
-import IconCache from '../../../../assets/svg/icon-cache.svg';
 import Bookmark from '../../../bookmark/index.vue';
 import { useSettingsStore } from '../../../../store/settings';
 import { useWindowStore } from '../../../../store/window';
@@ -39,10 +36,9 @@ const radioValue = ref('directory');
 const { options } = useSettingsStore();
 const message = useMessage();
 const { setCurrentReadIndex } = useDetailStore();
-const { currentDetailUrl, cacheIndexs } = storeToRefs(useDetailStore());
+const { currentDetailUrl } = storeToRefs(useDetailStore());
 const { getTextContent } = useTextContentStore();
 const { exist, getBookshelfEntity, put } = useBookshelfStore();
-const { cache } = useCacheChapter();
 const {
   pid,
   totalPage,
@@ -70,7 +66,6 @@ const directoryItemClick = (chapter: Chapter) => {
       if (isNull(currentDetailUrl.value) || !exist(pid.value, currentDetailUrl.value)) {
         return;
       }
-      cache(chapter.index);
       getBookshelfEntity(pid.value, currentDetailUrl.value).then(entity => {
         if (!entity) {
           return;
@@ -113,9 +108,6 @@ export default {
         <template v-if="currentDetailUrl">
           <ul>
             <li v-for="item in showValue" :key="item.url" class="rc-button" @click="directoryItemClick(item)">
-              <ElIcon v-if="cacheIndexs[currentDetailUrl].includes(item.index)" title="已缓存">
-                <IconCache />
-              </ElIcon>
               <Text ellipsis max-width="350" :title="item.title" :style="{
                 color: `${item.title === currentChapterTitle ? 'var(--rc-theme-color)' : ''}`,
                 fontWeight: `${item.title === currentChapterTitle ? 'bold' : ''}`

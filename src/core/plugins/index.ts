@@ -21,28 +21,24 @@ import {
   PluginRequestConfig,
   PluginsOptions,
 } from './defined/plugins';
-import { BookSource } from './defined/booksource';
 import { RequestProxy } from '../request/defined/request';
-import { isBookSource } from './booksource';
 import { isTTSEngine } from './ttsengine';
 import { TextToSpeechEngine } from './defined/ttsengine';
 import { EdgeTTSEngine } from './built-in/tts/edge';
 import { AliyunTTSEngine } from './built-in/tts/aliyun';
-import { Chapter } from '../book/book';
 import type { VM } from 'vm2';
 import NodeCrypto from 'crypto';
-import { uuid, sanitizeHTML, escapeHTML, escapeXML } from '../utils/html';
+import { uuid, escapeHTML, escapeXML } from '../utils/html';
 import { BaiduTTSEngine } from './built-in/tts/baidu';
 import { AzureTTSEngine } from './built-in/tts/azure';
 import { Core } from '..';
 import { WebSocketClient } from '../websocket';
 
 export enum PluginType {
-  BOOK_SOURCE = 0,
   /**
    * 保持数值为 2
-   * 插件 JS 以数字声明 TYPE，若因删除 BOOK_STORE 而前移，
-   * 已安装的 TTS 插件会被识别成其它类型
+   * 插件 JS 以数字声明 TYPE，不能随意改动，
+   * 否则已安装的插件会被识别成其它类型
    */
   TTS_ENGINE = 2,
 }
@@ -66,7 +62,7 @@ export class Plugins {
     updating: boolean,
     // props: PluginBaseProps,
     pluginClass: PluginInterface,
-    instance: BookSource | TextToSpeechEngine | null,
+    instance: TextToSpeechEngine | null,
     builtIn: boolean
   }> = new Map();
   public static readonly UGLIFY_JS = require('uglify-js');
@@ -203,7 +199,7 @@ export class Plugins {
     }
     return p.updating;
   }
-  public getPluginInstanceById<R = BookSource | TextToSpeechEngine>(id: PluginId): R | null | undefined {
+  public getPluginInstanceById<R = TextToSpeechEngine>(id: PluginId): R | null | undefined {
     const val = this.pluginsPool.get(id);
     return val && (<R>val.instance);
   }
@@ -244,17 +240,13 @@ export class Plugins {
     const props = this.getProps(pluginClass);
     return { props, instance: (<R>instance) }
   }
-  public getPluginsByType(type: PluginType.BOOK_SOURCE, filter?: PluginFilter): {
-    props: PluginBaseProps,
-    instance: BookSource | null
-  }[];
   public getPluginsByType(type: PluginType.TTS_ENGINE, filter?: PluginFilter): {
     props: PluginBaseProps,
     instance: TextToSpeechEngine | null
   }[];
   public getPluginsByType(type: PluginType, filter?: PluginFilter): {
     props: PluginBaseProps,
-    instance: BookSource | TextToSpeechEngine | null
+    instance: TextToSpeechEngine | null
   }[] {
     filter = {
       enable: true,
@@ -276,13 +268,13 @@ export class Plugins {
       .map(({ pluginClass, instance }) => {
         return {
           props: this.getProps(pluginClass),
-          instance: <BookSource | TextToSpeechEngine>instance
+          instance: <TextToSpeechEngine>instance
         }
       });
   }
 
-  public getPluginInstanceByType(type: PluginType.BOOK_SOURCE, filter?: PluginFilter): (BookSource | null)[];
-  public getPluginInstanceByType(type: number, filter?: PluginFilter): (BookSource | null)[] {
+  public getPluginInstanceByType(type: PluginType.TTS_ENGINE, filter?: PluginFilter): (TextToSpeechEngine | null)[];
+  public getPluginInstanceByType(type: PluginType, filter?: PluginFilter): (TextToSpeechEngine | null)[] {
     return this.getPluginsByType(type, filter).map(p => {
       return p.instance;
     });
@@ -337,10 +329,10 @@ export class Plugins {
     }
   }
 
-  public async importJSCode(jscode: string, options?: PluginImportOptions): Promise<BookSource | TextToSpeechEngine> {
+  public async importJSCode(jscode: string, options?: PluginImportOptions): Promise<TextToSpeechEngine> {
     return this.import(null, jscode, options);
   }
-  public async importPluginFile(pluginFilePath: string, options?: PluginImportOptions): Promise<BookSource | TextToSpeechEngine> {
+  public async importPluginFile(pluginFilePath: string, options?: PluginImportOptions): Promise<TextToSpeechEngine> {
     return this.import(pluginFilePath, null, options);
   }
 
@@ -422,7 +414,7 @@ export class Plugins {
     }
   }
 
-  private async import(pluginFilePath: string | null, jscode: string | null, options?: PluginImportOptions): Promise<BookSource | TextToSpeechEngine> {
+  private async import(pluginFilePath: string | null, jscode: string | null, options?: PluginImportOptions): Promise<TextToSpeechEngine> {
     try {
       if (!isNull(pluginFilePath)) {
         if (!existsSync(pluginFilePath)) {
@@ -437,22 +429,9 @@ export class Plugins {
       if (!options?.force && this.pluginsPool.has(PluginClass.ID)) {
         throw newError(`Plugin exists ID:${PluginClass.ID}`);
       }
-      const {
-        ID,
-        TYPE,
-        DEPRECATED
-      } = PluginClass;
+      const { ID, DEPRECATED } = PluginClass;
       const instance = this.createPluginClassInstance(PluginClass);
 
-      //拦截书源插件getTextContent方法
-      if (TYPE === PluginType.BOOK_SOURCE) {
-        (<any>PluginClass.prototype)._getTextContent = (<BookSource>PluginClass.prototype).getTextContent;
-        (<BookSource>PluginClass.prototype).getTextContent = async (chapter: Chapter) => {
-          const res: string[] = await (<any>PluginClass.prototype)._getTextContent.call(instance, chapter);
-          //对HTML字符串消毒
-          return res.map(v => sanitizeHTML(v)).filter(v => v !== '');
-        }
-      }
       if (!options?.debug) {
         await GLOBAL_DB.store.pluginsJSCode.put({
           id: ID,
@@ -573,29 +552,12 @@ export class Plugins {
       throw newError('The [PLUGIN_FILE_URL] format is not standard');
     }
 
-    if (plugin.TYPE === PluginType.BOOK_SOURCE) {
-      if (isUndefined(plugin.BASE_URL)) {
-        throw newError('Static property [BASE_URL] not found');
-      }
-      if (!isString(plugin.BASE_URL)) {
-        throw newError('Static property [BASE_URL] is not of string type');
-      }
-      if (!plugin.BASE_URL.trim()) {
-        throw newError('Static property [BASE_URL] is empty');
-      }
-      if (!/^https?:\/\/.*?/i.test(plugin.BASE_URL)) {
-        throw newError('The [BASE_URL] format is not standard');
-      }
-    }
-
     switch (plugin.TYPE) {
       case PluginType.TTS_ENGINE:
         isTTSEngine(plugin);
         break;
-      case PluginType.BOOK_SOURCE:
       default:
-        isBookSource(plugin);
-        break;
+        throw newError('Unknown plugin type');
     }
 
   }

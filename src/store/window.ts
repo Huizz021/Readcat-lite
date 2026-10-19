@@ -16,7 +16,7 @@ export const useWindowStore = defineStore('Window', {
       isDark: false,
       readProgress: '0%',
       isFullScreen: false,
-      searchBoxHeaderText: '搜索',
+      searchBoxHeaderText: '',
       disableShowSearchBox: new Map<PagePath, boolean>(),
       refreshEventMap: new Map<PagePath, () => void>(),
       inited: false,

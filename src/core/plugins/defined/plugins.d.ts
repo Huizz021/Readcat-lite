@@ -1,6 +1,5 @@
 import { Charset, Params, ResponseType } from '../../request/defined/request';
 import { IncomingHttpHeaders } from 'http';
-import { BookSource } from './booksource';
 import { TextToSpeechEngine } from './ttsengine';
 import { SearchEntity } from '../../book/book';
 export type PluginId = string;
@@ -87,8 +86,8 @@ export interface PluginBaseProps {
   readonly DEPRECATED?: boolean;
 }
 export interface PluginInterface extends PluginBaseProps {
-  new(params: PluginConstructorParams): BookSource | TextToSpeechEngine;
-  prototype: BookSource | TextToSpeechEngine;
+  new(params: PluginConstructorParams): TextToSpeechEngine;
+  prototype: TextToSpeechEngine;
 }
 
 export type PluginFilter = {

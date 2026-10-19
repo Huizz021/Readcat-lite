@@ -1,5 +1,4 @@
 import { isNull } from '../is';
-import { SearchKeyStoreDatabase } from './store/searchkey-store';
 import { HistoryStoreDatabase } from './store/history-store';
 import { PluginsStoreDatabase } from './store/plugin-store';
 import { PluginsJSCodeDatabase } from './store/plugins-jscode';
@@ -36,7 +35,6 @@ export class Database {
     pluginsJSCode: PluginsJSCodeDatabase,
     pluginsStore: PluginsStoreDatabase,
     historyStore: HistoryStoreDatabase,
-    searchKeyStore: SearchKeyStoreDatabase,
     bookshelfStore: BookshelfStoreDatabase,
     textContentStore: TextContentStoreDatabase,
     bookmarkStore: BookmarkStoreDatabase,
@@ -64,7 +62,6 @@ export class Database {
         pluginsJSCode: new PluginsJSCodeDatabase(this.db, StoreName.PLUGINS),
         pluginsStore: new PluginsStoreDatabase(this.db, StoreName.PLUGINS_STORE),
         historyStore: new HistoryStoreDatabase(this.db, StoreName.HISTORY),
-        searchKeyStore: new SearchKeyStoreDatabase(this.db, StoreName.SEARCH_KEY),
         bookshelfStore: new BookshelfStoreDatabase(this.db, StoreName.BOOKSHELF),
         textContentStore: new TextContentStoreDatabase(this.db, StoreName.TEXT_CONTENT),
         bookmarkStore: new BookmarkStoreDatabase(this.db, StoreName.BOOKMARK),

@@ -46,7 +46,6 @@ export class BookshelfStoreDatabase extends BaseStoreDatabase<BookshelfStoreEnti
           readChapterTitle: chapterList[readIndex]?.title,
           timestamp,
           pluginVersionCode,
-          isRunningRefresh: false,
           baseUrl,
           group: pid === BookParser.PID ? '内置' : props?.GROUP || 'unknown',
           pluginName: pid === BookParser.PID ? '本地书籍' : props?.NAME || 'unknown'

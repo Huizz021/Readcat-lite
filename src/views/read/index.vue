@@ -81,7 +81,7 @@ onRefresh(PagePath.READ, () => {
     return;
   }
   readAloudStop();
-  getTextContent(pid, currentChapter.value, true).then(() => {
+  getTextContent(pid, currentChapter.value).then(() => {
     if (isNull(currentChapter.value) || isUndefined(currentChapter.value.index)) {
       setCurrentReadIndex(-1);
       GLOBAL_LOG.warn(`chapter index is undefined, pid:${pid}`, currentChapter.value);
