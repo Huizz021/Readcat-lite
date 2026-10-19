@@ -499,19 +499,21 @@ const pageLabel = computed(() => {
           <div v-for="(slide, i) in comicSlides" :key="i" class="spread-slide" v-html="slide"></div>
         </div>
       </div>
-      <div v-else id="text-content" v-show="!isRunningGetTextContent" v-html="contents" ref="spreadEl" :style="{
-        width: spreadMode ? '100%' : width,
-        minHeight: spreadMode ? '' : pageHeight,
-        fontSize,
-        fontWeight,
-        transform: spreadMode ? spreadTransform : '',
-        transition: spreadMode ? `transform ${FLIP_DURATION}ms ease` : '',
-        '--rc-read-aloud-color': isDark ? '' : readAloudColor,
-        '--rc-bookmark-odd-color': isDark ? '' : bookmarkColorOdd,
-        '--rc-bookmark-even-color': isDark ? '' : bookmarkColorEven,
-        '--rc-bookmark-odd-font-color': isDark ? options.enableBookmarkHighlight ? '' : 'none' : options.enableBookmarkHighlight ? bookmarkColorOdd : '',
-        '--rc-bookmark-even-font-color': isDark ? options.enableBookmarkHighlight ? '' : 'none' : options.enableBookmarkHighlight ? bookmarkColorEven : '',
-      }" :class="[spreadMode ? 'spread-text' : '', isSelectPlay && playerStatus === 'pause' ? 'play-start' : '']"></div>
+      <div v-else class="text-viewport" :class="{ spread: spreadMode }">
+        <div id="text-content" v-show="!isRunningGetTextContent" v-html="contents" ref="spreadEl" :style="{
+          width: spreadMode ? '100%' : width,
+          minHeight: spreadMode ? '' : pageHeight,
+          fontSize,
+          fontWeight,
+          transform: spreadMode ? spreadTransform : '',
+          transition: spreadMode ? `transform ${FLIP_DURATION}ms ease` : '',
+          '--rc-read-aloud-color': isDark ? '' : readAloudColor,
+          '--rc-bookmark-odd-color': isDark ? '' : bookmarkColorOdd,
+          '--rc-bookmark-even-color': isDark ? '' : bookmarkColorEven,
+          '--rc-bookmark-odd-font-color': isDark ? options.enableBookmarkHighlight ? '' : 'none' : options.enableBookmarkHighlight ? bookmarkColorOdd : '',
+          '--rc-bookmark-even-font-color': isDark ? options.enableBookmarkHighlight ? '' : 'none' : options.enableBookmarkHighlight ? bookmarkColorEven : '',
+        }" :class="[spreadMode ? 'spread-text' : '', isSelectPlay && playerStatus === 'pause' ? 'play-start' : '']"></div>
+      </div>
     </div>
     <div v-if="spreadMode" class="spread-nav">
       <button title="上一页" @click="onPrevPage" :disabled="!canGoPrev">
@@ -593,6 +595,22 @@ const pageLabel = computed(() => {
         opacity: 0.12;
         pointer-events: none;
       }
+    }
+  }
+
+  /* 正文视口：滚动模式下用于居中 80% 宽度的正文 */
+  .text-viewport {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+
+    /* 对开模式下裁剪边界必须等于页宽（内容盒）。
+       多栏内容会溢出到元素框之外，若只在舞台（含 padding）上裁剪，
+       溢出部分会落在左右页边距里露出来——就是右边缘那条竖排文字。 */
+    &.spread {
+      display: block;
+      height: 100%;
+      overflow: hidden;
     }
   }
 
