@@ -25,13 +25,18 @@ import { useScrollToggleChapter } from './hooks/scroll-toggle-chapter';
 import { useClipboard } from './hooks/clipboard';
 import { BookshelfStoreEntity, TextContentStoreEntity } from '../../core/database/database';
 import { useReadPageTurn } from '../../hooks/read-page-turn';
+import { useReadSearch, SearchHit } from './hooks/search';
+import IconSearch from '../../assets/svg/icon-search.svg';
 
 const route = useRoute();
 
 const pid = String(route.query.pid);
 const detailUrl = String(route.query.detailUrl);
 
-const { currentChapter } = storeToRefs(useTextContentStore());
+const textContentStore = useTextContentStore();
+const { currentChapter } = storeToRefs(textContentStore);
+const { gotoChapter } = textContentStore;
+const { detailResult } = storeToRefs(useDetailStore());
 const { mainElement } = storeToRefs(useScrollTopStore());
 const { scrollToTextContent } = useScrollTopStore();
 const { calcReadProgress, onRefresh } = useWindowStore();
@@ -481,6 +486,82 @@ const onWheel = (e: WheelEvent) => {
 
 /** 注册到全局快捷键：对开模式下接管翻页，未处理时由全局退回滚动 */
 const { register: registerPageTurn, unregister: unregisterPageTurn } = useReadPageTurn();
+
+/* ---------------- 全文搜索 ---------------- */
+
+const {
+  keyword: searchKeyword,
+  hits: searchHits,
+  searching,
+  searched,
+  truncated,
+  run: runSearch,
+  reset: resetSearch,
+} = useReadSearch();
+const searchVisible = ref(false);
+const searchInput = ref<HTMLInputElement>();
+const chapterList = computed(() => detailResult.value?.chapterList || []);
+
+const openSearch = () => {
+  searchVisible.value = true;
+  nextTick(() => searchInput.value?.focus());
+};
+
+const closeSearch = () => {
+  searchVisible.value = false;
+  resetSearch();
+};
+
+let searchTimer: number | undefined;
+const onSearchInput = () => {
+  window.clearTimeout(searchTimer);
+  searchTimer = window.setTimeout(() => {
+    runSearch(pid, chapterList.value, searchKeyword.value);
+  }, 250);
+};
+
+/** 定位到命中的段落：对开模式跳到它所在的那一屏，滚动模式滚到中间，并闪一下 */
+const flashParagraph = (paragraphIndex: number) => {
+  const node = document.querySelector<HTMLElement>(`#text-content > div[data-index="${paragraphIndex}"]`);
+  if (!node) {
+    return;
+  }
+  if (spreadMode.value) {
+    const step = pageStep();
+    if (step > 0) {
+      const page = Math.floor(node.offsetLeft / step);
+      pageIndex.value = Math.max(0, Math.min(totalPages.value - 1, page));
+      updateTransform();
+    }
+  } else {
+    node.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+  node.classList.add('search-hit-flash');
+  window.setTimeout(() => node.classList.remove('search-hit-flash'), 2000);
+};
+
+const onHitClick = async (hit: SearchHit) => {
+  searchVisible.value = false;
+  await gotoChapter(hit.chapterIndex, true);
+  await nextTick();
+  // 新章节的排版（尤其图片）可能还没稳定，稍等再定位
+  window.setTimeout(() => {
+    recalcPages();
+    flashParagraph(hit.paragraphIndex);
+  }, 220);
+};
+
+/** Ctrl+F / Cmd+F 打开搜索 */
+const onSearchKeydown = (e: KeyboardEvent) => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+    e.preventDefault();
+    openSearch();
+    return;
+  }
+  if (e.key === 'Escape' && searchVisible.value) {
+    closeSearch();
+  }
+};
 const handleShortcutNext = () => {
   if (!spreadMode.value) {
     return false;
@@ -500,6 +581,7 @@ onMounted(() => {
   registerPageTurn({ next: handleShortcutNext, prev: handleShortcutPrev });
   window.addEventListener('resize', onResize);
   window.addEventListener('wheel', onWheel, { passive: false });
+  window.addEventListener('keydown', onSearchKeydown);
 
   // 点击章节会直接跳到阅读页，此时 currentChapter 与 contents 在挂载前就已就绪，
   // watch 不会触发，必须在挂载后主动算一次。延迟一次以避开布局未完成的时序。
@@ -513,6 +595,7 @@ onUnmounted(() => {
   unregisterPageTurn();
   window.removeEventListener('resize', onResize);
   window.removeEventListener('wheel', onWheel);
+  window.removeEventListener('keydown', onSearchKeydown);
 });
 
 const pageLabel = computed(() => {
@@ -579,6 +662,29 @@ const pageLabel = computed(() => {
         <IconArrowLineDown />
       </ElIcon>
       <p>向下滚动切换下一章节</p>
+    </div>
+
+    <!-- 全文搜索 -->
+    <button class="reader-search-trigger" title="全文搜索 (Ctrl+F)" @click="openSearch">
+      <ElIcon size="16"><IconSearch /></ElIcon>
+    </button>
+    <div v-if="searchVisible" class="reader-search-panel" @click.stop @wheel.stop>
+      <div class="reader-search-head">
+        <input ref="searchInput" v-model="searchKeyword" placeholder="搜索本书内容" @input="onSearchInput" />
+        <button class="reader-search-close" @click="closeSearch">关闭</button>
+      </div>
+      <div class="reader-search-body">
+        <p v-if="searching" class="reader-search-tip">搜索中…</p>
+        <p v-else-if="!searched" class="reader-search-tip">输入关键词开始搜索</p>
+        <p v-else-if="searchHits.length === 0" class="reader-search-tip">没有找到「{{ searchKeyword }}」</p>
+        <template v-else>
+          <p v-if="truncated" class="reader-search-tip">结果过多，仅显示前 {{ searchHits.length }} 条</p>
+          <div v-for="(hit, i) in searchHits" :key="i" class="reader-search-hit" @click="onHitClick(hit)">
+            <div class="reader-search-chapter">{{ hit.chapterTitle }}</div>
+            <div class="reader-search-snippet" v-html="hit.snippet"></div>
+          </div>
+        </template>
+      </div>
     </div>
     <Menu trigger="#main" class-name="read-menu" :disabled="isRunningGetTextContent">
       <MenuItem label="上一章" @click="prevChapter(true)" />
@@ -799,6 +905,140 @@ const pageLabel = computed(() => {
         max-width: 100%;
         user-select: text;
       }
+    }
+  }
+
+  /* ---------------- 全文搜索 ---------------- */
+
+  .reader-search-trigger {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 20;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 0.5px solid var(--color-border-secondary, rgba(0, 0, 0, 0.18));
+    border-radius: 8px;
+    background: transparent;
+    color: var(--rc-text-secondary, #5F5E5A);
+    cursor: pointer;
+    opacity: 0.45;
+    transition: opacity 0.2s ease;
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+
+  .reader-search-panel {
+    position: absolute;
+    top: 48px;
+    right: 10px;
+    z-index: 21;
+    display: flex;
+    flex-direction: column;
+    width: 360px;
+    max-width: calc(100% - 20px);
+    max-height: 60vh;
+    border: 0.5px solid var(--color-border-secondary, rgba(0, 0, 0, 0.18));
+    border-radius: 10px;
+    background: var(--rc-bg, #fff);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    overflow: hidden;
+  }
+
+  .reader-search-head {
+    display: flex;
+    gap: 8px;
+    padding: 10px;
+    border-bottom: 0.5px solid var(--color-border-secondary, rgba(0, 0, 0, 0.12));
+
+    input {
+      flex: 1;
+      min-width: 0;
+      height: 30px;
+      padding: 0 10px;
+      border: 0.5px solid var(--color-border-secondary, rgba(0, 0, 0, 0.2));
+      border-radius: 6px;
+      background: transparent;
+      color: inherit;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .reader-search-close {
+      flex: none;
+      padding: 0 10px;
+      height: 30px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--rc-text-secondary, #5F5E5A);
+      font-size: 12px;
+      cursor: pointer;
+    }
+  }
+
+  .reader-search-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 0;
+  }
+
+  .reader-search-tip {
+    margin: 0;
+    padding: 10px 12px;
+    font-size: 12px;
+    color: var(--rc-text-secondary, #8a8a85);
+  }
+
+  .reader-search-hit {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 0.5px solid var(--color-border-secondary, rgba(0, 0, 0, 0.06));
+
+    &:hover {
+      background: var(--color-fill-light, rgba(0, 0, 0, 0.04));
+    }
+  }
+
+  .reader-search-chapter {
+    margin-bottom: 2px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--rc-text-color, #1f1f1f);
+    opacity: 0.85;
+  }
+
+  .reader-search-snippet {
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: var(--rc-text-secondary, #5F5E5A);
+    word-break: break-all;
+
+    :deep(mark) {
+      padding: 0 1px;
+      border-radius: 2px;
+      background: #ffd666;
+      color: #1f1f1f;
+    }
+  }
+
+  /* 命中段落的短暂高亮 */
+  :deep(.search-hit-flash) {
+    animation: search-hit-flash 1.8s ease;
+  }
+
+  @keyframes search-hit-flash {
+    0%, 60% {
+      background: rgba(255, 214, 102, 0.45);
+    }
+    100% {
+      background: transparent;
     }
   }
 

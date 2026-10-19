@@ -122,6 +122,63 @@ export const useTextContentStore = defineStore('TextContent', {
         .then(() => listener && listener())
         .catch(e => ignoreError ? Promise.resolve() : Promise.reject(e));
     },
+    /**
+     * 跳到指定章节（全文搜索的跳转用）。
+     * 与 handlerChapter 的区别只是索引由调用方给定，而不是当前章节 ±1。
+     */
+    async gotoChapter(index: number, ignoreError = false) {
+      const detailStore = useDetailStore();
+      const { setCurrentReadIndex, currentReadScrollTop } = detailStore;
+      const { detailResult, currentPid, currentDetailUrl } = storeToRefs(detailStore);
+      const { exist, getBookshelfEntity, put } = useBookshelfStore();
+      const { calcReadProgress } = useWindowStore();
+      const { scrollToTextContent } = useScrollTopStore();
+      const readAloud = useReadAloudStore();
+      const message = useMessage();
+      const listener = this.events.get('chapterchange');
+      try {
+        if (this.isRunningGetTextContent) {
+          throw newError('正在获取章节正文');
+        }
+        if (isNull(detailResult.value) || detailResult.value.chapterList.length <= 0) {
+          throw newError('无法获取章节列表');
+        }
+        if (isNull(currentPid.value)) {
+          throw newError('无法获取插件ID');
+        }
+        if (index < 0 || index >= detailResult.value.chapterList.length) {
+          throw newError('章节索引超出范围');
+        }
+        if (!isNull(this.currentChapter) && this.currentChapter.index === index) {
+          listener && listener();
+          return;
+        }
+        const chapter = detailResult.value.chapterList[index];
+        await this.getTextContent(currentPid.value, chapter);
+        calcReadProgress();
+        setCurrentReadIndex(index);
+        currentReadScrollTop.chapterIndex = index;
+        currentReadScrollTop.scrollTop = 0;
+        readAloud.stop();
+        if (!isNull(currentPid.value) && !isNull(currentDetailUrl.value) && exist(currentPid.value, currentDetailUrl.value)) {
+          this.cache(currentPid.value, currentDetailUrl.value, detailResult.value.chapterList, index);
+          getBookshelfEntity(currentPid.value, currentDetailUrl.value).then(entity => {
+            if (!entity) {
+              return;
+            }
+            put({ ...entity, readIndex: chapter.index, readScrollTop: 0 });
+          });
+        }
+        listener && listener();
+      } catch (e) {
+        e && message.error(errorHandler(e, true));
+        if (!ignoreError) {
+          throw e;
+        }
+      } finally {
+        scrollToTextContent();
+      }
+    },
     async getTextContent(pid: string, chapter: Chapter, refresh = false): Promise<void> {
       const win = useWindowStore();
       try {
