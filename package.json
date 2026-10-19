@@ -10,7 +10,8 @@
   "scripts": {
     "cdev": "chcp 65001 && npm run dev",
     "dev": "npm run make --tag=test && vite",
-    "build:vite": "vue-tsc && vite build",
+    "build:vite": "vite build",
+    "typecheck": "vue-tsc --noEmit",
     "build:win32": "npm run build:vite && node builder.cjs --win32",
     "build:win32:windows7": "npm run build:vite && node builder.cjs --win32=ia32 --windows7",
     "build:win32:x64": "npm run build:vite && node builder.cjs --win32=x64",
